@@ -1,0 +1,12 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+You can rely on [long_term.md](mdc:debt-purchasing-frontend/.cursor/memory_bank/long_term.md) and all memory inside folder `.cursor/memory_bank/` to implements tasks. 
+
+Because there it will contain everything about the project that has been done. 
+
+Helps reduce the context window for reading the entire code. 
+
+You should rely on this memory to continue developing or maintaining features.

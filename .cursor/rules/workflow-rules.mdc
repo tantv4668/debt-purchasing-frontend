@@ -1,0 +1,22 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+1. Only when user starts a new conversation:
+- Read [long_term.md](mdc:debt-purchasing-frontend/debt-purchasing-frontend/debt-purchasing-frontend/debt-purchasing-frontend/debt-purchasing-frontend/debt-purchasing-frontend/debt-purchasing-frontend/debt-purchasing-frontend/debt-purchasing-frontend/.cursor/memory_bank/long_term.md) file to get the context of the project.
+- Generate a workflow name (under 10 words, snake case).
+- Then, create file `.cursor/memory_bank/wf_{workflow_name}.md`. The content must have the following sections: - Current tasks from user prompt.
+ + Plan (simple): your plan & thoughts to solve task(s).
+ + Steps: break your plan into small steps.
+ + Things done
+ + Things not done yet
+ + In a cycle of current conversation:
+
+2. If continuing with an existing conversation:
+- Read current `.cursor/memory_bank/wf_{workflow_name}.md` file. Don't be lazy, don't omit any content.
+- Update plan and steps if needed, based on the current state.
+- After you finish a task, update `Things done` and `Things not done yet` to track your work.
+- Summary all lastest flow + logic + feature to [long_term.md](mdc:debt-purchasing-frontend/debt-purchasing-frontend/debt-purchasing-frontend/debt-purchasing-frontend/debt-purchasing-frontend/debt-purchasing-frontend/debt-purchasing-frontend/debt-purchasing-frontend/debt-purchasing-frontend/debt-purchasing-frontend/.cursor/memory_bank/long_term.md) (as concise as possible but still followable and easy to understand in general for continued development and maintenance)
+
+3. You can also find other related memories in the `.cursor/memory_bank` folder to have more context for updating or developing more features. In the folders `.cursor/memory_bank` there can also be many other memories. You can rely on either the file name or the content to get the necessary and complete information to perform the job.

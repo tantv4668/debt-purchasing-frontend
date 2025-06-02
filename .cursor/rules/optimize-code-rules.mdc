@@ -1,0 +1,20 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+
+# Optimize Rule
+
+Optimize code help me to: 
+- Remove redundant code 
+- Redundant variables 
+- Beauty code 
+- Shorten code
+- Easy develop and maintain
+
+But still need keep: 
+- Correct logic
+- Correct flow
+- Important comments
+- Comments difficult logic
