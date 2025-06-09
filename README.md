@@ -15,23 +15,27 @@ The frontend application provides a comprehensive interface for:
 ## 🚀 Tech Stack
 
 ### Core Framework
+
 - **Next.js 14** with App Router
 - **TypeScript** for type safety
 - **Tailwind CSS** for styling
 - **Shadcn/UI** for component library
 
 ### Web3 Integration
+
 - **Wagmi v1** for blockchain interactions
 - **RainbowKit** for wallet connections
 - **Viem** as Ethereum library
 - **TanStack Query** for data fetching
 
 ### State Management
+
 - **Zustand** for global state
 - **React Hook Form** for form management
 - **Zod** for schema validation
 
 ### Data & Analytics
+
 - **Apollo Client** for GraphQL/Subgraph
 - **Recharts** for financial charts
 - **Tremor** for dashboard components
@@ -44,11 +48,26 @@ The frontend application provides a comprehensive interface for:
 
 ## 🛠️ Installation
 
-### 1. Clone and Install
+### 1. Quick Setup (Recommended)
+
 ```bash
 # Navigate to frontend directory
 cd debt-purchasing-frontend
 
+# Run automated setup script
+./setup.sh
+```
+
+The setup script will automatically:
+
+- Install all dependencies
+- Create `.env.local` with template values
+- Generate contract types (if contracts are available)
+- Run health checks
+
+### 2. Manual Installation
+
+```bash
 # Install dependencies
 npm install
 
@@ -57,6 +76,7 @@ yarn install
 ```
 
 ### 2. Environment Setup
+
 ```bash
 # Copy environment template
 cp .env.local.example .env.local
@@ -87,6 +107,7 @@ NEXT_PUBLIC_SUBGRAPH_URL=https://api.thegraph.com/subgraphs/name/your-subgraph
 ```
 
 ### 4. Generate Contract Types
+
 ```bash
 # Generate typed contracts from Foundry project
 npm run generate
@@ -95,18 +116,21 @@ npm run generate
 ## 🚀 Development
 
 ### Start Development Server
+
 ```bash
 npm run dev
 # App will be available at http://localhost:3000
 ```
 
 ### Build for Production
+
 ```bash
 npm run build
 npm start
 ```
 
 ### Testing
+
 ```bash
 # Run tests
 npm test
@@ -155,29 +179,34 @@ src/
 ## 🔧 Key Features
 
 ### 1. Dashboard
+
 - Real-time health factor monitoring
 - Position overview and management
 - Risk alerts and notifications
 
 ### 2. Position Management
+
 - Create new leveraged positions
 - Supply collateral and borrow assets
 - Monitor health factors and risks
 - Withdraw and repay functionality
 
 ### 3. Order Creation
+
 - Full sale orders for complete position transfer
 - Partial sale orders for debt reduction
 - EIP-712 signature creation and verification
 - Time-based and trigger-based execution
 
 ### 4. Marketplace
+
 - Browse available debt positions
 - Filter by risk level, size, and terms
 - Execute orders with multicall optimization
 - Real-time order status updates
 
 ### 5. Analytics
+
 - Historical health factor charts
 - Profit/loss tracking
 - Market statistics and trends
@@ -186,18 +215,20 @@ src/
 ## 📊 Smart Contract Integration
 
 ### Multicall Transactions
+
 ```typescript
 // Create position with supply and borrow in one transaction
 const multicallData = [
-  router.interface.encodeFunctionData("createDebt", []),
-  router.interface.encodeFunctionData("callSupply", [predictedAddress, WETH, amount]),
-  router.interface.encodeFunctionData("callBorrow", [predictedAddress, USDC, amount, 2, user])
+  router.interface.encodeFunctionData('createDebt', []),
+  router.interface.encodeFunctionData('callSupply', [predictedAddress, WETH, amount]),
+  router.interface.encodeFunctionData('callBorrow', [predictedAddress, USDC, amount, 2, user]),
 ];
 
 await router.multicall(multicallData);
 ```
 
 ### Order Signing
+
 ```typescript
 // Sign full sale order with EIP-712
 const signature = await signTypedData({
@@ -209,6 +240,7 @@ const signature = await signTypedData({
 ```
 
 ### Real-time Monitoring
+
 ```typescript
 // Monitor health factors with automatic updates
 const { data: healthFactor } = useContractRead({
@@ -216,7 +248,7 @@ const { data: healthFactor } = useContractRead({
   abi: aavePoolAbi,
   functionName: 'getUserAccountData',
   args: [debtAddress],
-  watch: true
+  watch: true,
 });
 ```
 
@@ -240,6 +272,7 @@ const { data: healthFactor } = useContractRead({
 ## 🚀 Deployment
 
 ### Vercel (Recommended)
+
 ```bash
 # Install Vercel CLI
 npm i -g vercel
@@ -251,6 +284,7 @@ vercel
 ```
 
 ### Manual Deployment
+
 ```bash
 npm run build
 # Deploy 'out' directory to your hosting provider
