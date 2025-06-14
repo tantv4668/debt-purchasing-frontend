@@ -35,9 +35,9 @@ fi
 echo "✅ Dependencies installed successfully"
 
 # Create environment file if it doesn't exist
-if [ ! -f ".env.local" ]; then
+if [ ! -f ".env" ]; then
     echo "🔧 Creating environment file..."
-    cat > .env.local << 'EOF'
+    cat > .env << 'EOF'
 # Blockchain Configuration
 NEXT_PUBLIC_CHAIN_ID=1
 NEXT_PUBLIC_ENABLE_TESTNETS=true
@@ -71,7 +71,7 @@ NEXT_PUBLIC_GOOGLE_ANALYTICS_ID=G-XXXXXXXXXX
 NEXT_PUBLIC_APP_NAME="Debt Purchasing Protocol"
 NEXT_PUBLIC_APP_DESCRIPTION="Trade debt positions on Aave V3"
 EOF
-    echo "✅ Environment file created at .env.local"
+    echo "✅ Environment file created at .env"
     echo "⚠️  Please update the environment variables with your actual values"
 else
     echo "ℹ️  Environment file already exists"
@@ -89,7 +89,7 @@ echo ""
 echo "🎉 Setup completed successfully!"
 echo ""
 echo "📋 Next steps:"
-echo "1. Update .env.local with your API keys and contract addresses"
+echo "1. Update .env with your API keys and contract addresses"
 echo "2. Make sure the smart contracts are compiled: cd ../debt-purchasing-contracts && forge build"
 echo "3. Generate contract types: npm run generate"
 echo "4. Start development server: npm run dev"

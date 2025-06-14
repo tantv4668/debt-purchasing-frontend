@@ -61,7 +61,7 @@ cd debt-purchasing-frontend
 The setup script will automatically:
 
 - Install all dependencies
-- Create `.env.local` with template values
+- Create `.env` with template values
 - Generate contract types (if contracts are available)
 - Run health checks
 
@@ -79,15 +79,15 @@ yarn install
 
 ```bash
 # Copy environment template
-cp .env.local.example .env.local
+cp .env.example .env
 
 # Edit environment variables
-nano .env.local
+nano .env
 ```
 
 ### 3. Configure Environment Variables
 
-Create `.env.local` with:
+Create `.env` with:
 
 ```bash
 # Blockchain Configuration
@@ -141,6 +141,66 @@ npm run test:ui
 # Type checking
 npm run type-check
 ```
+
+## 🐛 Debugging
+
+### VS Code Debug Configurations
+
+The project includes comprehensive VS Code debugging setup with 6 different configurations:
+
+```bash
+# Debugging commands
+npm run dev:debug        # Development with debugger enabled
+npm run dev:debug-brk    # Development with debugger break on start
+```
+
+### Available Debug Configurations
+
+1. **Next.js: Debug Server-Side** - Debug SSR, API routes, middleware
+2. **Next.js: Debug Client-Side** - Debug React components in Chrome
+3. **Next.js: Debug Full Stack** - Debug both server and client simultaneously
+4. **Web3: Debug Wagmi/Viem** - Specialized for Web3 interactions
+5. **Next.js: Debug API Routes** - Focus on backend logic
+6. **Next.js: Attach to Running Dev Server** - Attach to existing dev server
+
+### Quick Start Debugging
+
+1. **Press `F5`** in VS Code
+2. **Select configuration** based on your debugging needs
+3. **Set breakpoints** by clicking line numbers
+4. **Use debug console** for live evaluation
+
+### Web3 Debugging Tips
+
+```typescript
+// Debug Wagmi hooks with breakpoints
+const { data, error, isLoading } = useContractRead({
+  // ... config
+  onSuccess: data => {
+    console.log('Contract read success:', data);
+    debugger; // Breakpoint triggers here
+  },
+  onError: error => {
+    console.error('Contract read error:', error);
+    debugger; // Breakpoint for errors
+  },
+});
+
+// Debug wallet connections
+const { address, isConnected } = useAccount({
+  onConnect: ({ address, connector }) => {
+    console.log('Wallet connected:', address, connector?.name);
+    debugger; // Debug connection flow
+  },
+});
+```
+
+### Debugging Best Practices
+
+- **Conditional Breakpoints**: Right-click → "Add Conditional Breakpoint"
+- **Watch Variables**: Monitor `isConnected`, `address`, `chain?.id`
+- **Debug Console**: Evaluate expressions like `typeof variable`
+- **Source Maps**: Debug original TypeScript files, not compiled JS
 
 ## 📁 Project Structure
 

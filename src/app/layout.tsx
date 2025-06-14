@@ -1,9 +1,15 @@
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
-import { Providers } from './providers';
 import './globals.css';
+import { Providers } from './providers';
 
-const inter = Inter({ subsets: ['latin'] });
+const inter = Inter({
+  subsets: ['latin'],
+  variable: '--font-inter',
+  display: 'swap',
+  preload: true,
+  weight: ['400', '500', '600', '700'],
+});
 
 export const metadata: Metadata = {
   title: 'Debt Purchasing Protocol',
@@ -13,7 +19,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang='en'>
+    <html lang='en' suppressHydrationWarning>
       <body className={inter.className}>
         <Providers>{children}</Providers>
       </body>

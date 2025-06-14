@@ -1,8 +1,8 @@
 'use client';
 
 import { ConnectButton } from '@rainbow-me/rainbowkit';
-import { useAccount } from 'wagmi';
 import Link from 'next/link';
+import { useAccount } from 'wagmi';
 
 export default function DashboardPage() {
   const { isConnected, address } = useAccount();
@@ -13,7 +13,9 @@ export default function DashboardPage() {
         <div className='bg-white p-8 rounded-2xl shadow-xl text-center max-w-md mx-auto'>
           <h1 className='text-2xl font-bold text-gray-900 mb-4'>Connect Your Wallet</h1>
           <p className='text-gray-600 mb-6'>Please connect your wallet to access the dashboard.</p>
-          <ConnectButton />
+          <div className='flex justify-center'>
+            <ConnectButton />
+          </div>
         </div>
       </div>
     );

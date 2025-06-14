@@ -98,7 +98,7 @@ export default function HomePage() {
 
       {/* Footer */}
       <footer className='p-8 text-center border-t border-white/20 text-white opacity-80'>
-        <p>&copy; 2024 Debt Purchasing Protocol. Built with ❤️ for DeFi.</p>
+        <p>&copy; 2025 Debt Purchasing Protocol. Built with ❤️ for DeFi.</p>
       </footer>
     </div>
   );

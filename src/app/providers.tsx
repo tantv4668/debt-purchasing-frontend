@@ -1,22 +1,31 @@
 'use client';
 
-import * as React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { WagmiProvider } from 'wagmi';
-import { RainbowKitProvider } from '@rainbow-me/rainbowkit';
-import { config } from '@/lib/wagmi';
+import dynamic from 'next/dynamic';
+import * as React from 'react';
 
-import '@rainbow-me/rainbowkit/styles.css';
-
-// Create a client for React Query
-const queryClient = new QueryClient();
+// Dynamically import Web3 provider to avoid SSR issues with indexedDB
+const Web3Provider = dynamic(() => import('./web3-provider'), {
+  ssr: false,
+});
 
 export function Providers({ children }: { children: React.ReactNode }) {
+  // Create a client for React Query - use useState to ensure single instance
+  const [queryClient] = React.useState(
+    () =>
+      new QueryClient({
+        defaultOptions: {
+          queries: {
+            staleTime: 60 * 1000, // 1 minute
+            refetchOnWindowFocus: false,
+          },
+        },
+      }),
+  );
+
   return (
-    <WagmiProvider config={config}>
-      <QueryClientProvider client={queryClient}>
-        <RainbowKitProvider>{children}</RainbowKitProvider>
-      </QueryClientProvider>
-    </WagmiProvider>
+    <QueryClientProvider client={queryClient}>
+      <Web3Provider>{children}</Web3Provider>
+    </QueryClientProvider>
   );
 }
