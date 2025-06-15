@@ -1,19 +1,44 @@
 'use client';
 
-import { ConnectButton } from '@rainbow-me/rainbowkit';
+import { useState } from 'react';
 import { useAccount } from 'wagmi';
-import Link from 'next/link';
+import CreatePositionModal from '../../components/CreatePositionModal';
+import { formatHealthFactor, useUserDebtPositions, useUserPositionSummary } from '../../lib/hooks/useDebtPositions';
 
 export default function PositionsPage() {
-  const { isConnected, address } = useAccount();
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const { address, isConnected } = useAccount();
+  const { positions, isLoading, error } = useUserDebtPositions();
+  const summary = useUserPositionSummary();
 
   if (!isConnected) {
     return (
-      <div className='min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 flex items-center justify-center'>
-        <div className='bg-white p-8 rounded-2xl shadow-xl text-center max-w-md mx-auto'>
+      <div className='min-h-screen bg-gray-50 flex items-center justify-center'>
+        <div className='text-center'>
           <h1 className='text-2xl font-bold text-gray-900 mb-4'>Connect Your Wallet</h1>
-          <p className='text-gray-600 mb-6'>Please connect your wallet to view your positions.</p>
-          <ConnectButton />
+          <p className='text-gray-600'>Please connect your wallet to view your debt positions.</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className='min-h-screen bg-gray-50 flex items-center justify-center'>
+        <div className='text-center'>
+          <div className='animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4'></div>
+          <p className='text-gray-600'>Loading your positions...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className='min-h-screen bg-gray-50 flex items-center justify-center'>
+        <div className='text-center'>
+          <h1 className='text-2xl font-bold text-red-600 mb-4'>Error Loading Positions</h1>
+          <p className='text-gray-600'>Failed to load positions. Please try again.</p>
         </div>
       </div>
     );
@@ -21,235 +46,230 @@ export default function PositionsPage() {
 
   return (
     <div className='min-h-screen bg-gray-50'>
-      {/* Header */}
-      <header className='bg-white shadow-sm border-b'>
-        <div className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4'>
-          <div className='flex justify-between items-center'>
-            <div className='flex items-center gap-8'>
-              <Link href='/' className='flex items-center gap-3'>
-                <div className='w-8 h-8 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg flex items-center justify-center text-white font-bold'>
-                  DP
-                </div>
-                <span className='text-xl font-bold text-gray-900'>Debt Protocol</span>
-              </Link>
-              <nav className='hidden md:flex space-x-8'>
-                <Link href='/dashboard' className='text-gray-500 hover:text-gray-900'>
-                  Dashboard
-                </Link>
-                <Link href='/positions' className='text-blue-600 font-medium'>
-                  Positions
-                </Link>
-                <Link href='/market' className='text-gray-500 hover:text-gray-900'>
-                  Market
-                </Link>
-                <Link href='/orders' className='text-gray-500 hover:text-gray-900'>
-                  Orders
-                </Link>
-              </nav>
-            </div>
-            <ConnectButton />
+      <div className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8'>
+        {/* Header */}
+        <div className='flex justify-between items-center mb-8'>
+          <div>
+            <h1 className='text-3xl font-bold text-gray-900'>Debt Positions</h1>
+            <p className='text-gray-600 mt-2'>Manage your leveraged positions and monitor health factors</p>
           </div>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8'>
-        {/* Header Section */}
-        <div className='mb-8'>
-          <h1 className='text-3xl font-bold text-gray-900'>Your Debt Positions</h1>
-          <p className='text-gray-600 mt-2'>Monitor and manage your Aave V3 debt positions</p>
+          <button
+            onClick={() => setIsCreateModalOpen(true)}
+            className='bg-blue-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors'
+          >
+            Create Position
+          </button>
         </div>
 
         {/* Summary Cards */}
-        <div className='grid grid-cols-1 md:grid-cols-3 gap-6 mb-8'>
-          <div className='bg-white p-6 rounded-xl shadow-sm border'>
+        <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8'>
+          <div className='bg-white rounded-xl shadow-sm p-6 border border-gray-200'>
+            <div className='flex items-center justify-between'>
+              <div>
+                <p className='text-sm font-medium text-gray-600'>Total Positions</p>
+                <p className='text-2xl font-bold text-gray-900'>{summary.totalPositions}</p>
+              </div>
+              <div className='w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center'>
+                <svg className='w-6 h-6 text-blue-600' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
+                  <path
+                    strokeLinecap='round'
+                    strokeLinejoin='round'
+                    strokeWidth={2}
+                    d='M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10'
+                  />
+                </svg>
+              </div>
+            </div>
+          </div>
+
+          <div className='bg-white rounded-xl shadow-sm p-6 border border-gray-200'>
             <div className='flex items-center justify-between'>
               <div>
                 <p className='text-sm font-medium text-gray-600'>Total Debt Value</p>
-                <p className='text-2xl font-bold text-gray-900'>$12,450</p>
+                <p className='text-2xl font-bold text-gray-900'>${summary.totalDebtValue.toLocaleString()}</p>
               </div>
-              <div className='w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center'>
-                <span className='text-2xl'>💳</span>
-              </div>
-            </div>
-          </div>
-
-          <div className='bg-white p-6 rounded-xl shadow-sm border'>
-            <div className='flex items-center justify-between'>
-              <div>
-                <p className='text-sm font-medium text-gray-600'>Average Health Factor</p>
-                <p className='text-2xl font-bold text-green-600'>2.35</p>
-              </div>
-              <div className='w-12 h-12 bg-green-100 rounded-full flex items-center justify-center'>
-                <span className='text-2xl'>🛡️</span>
+              <div className='w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center'>
+                <svg className='w-6 h-6 text-red-600' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
+                  <path
+                    strokeLinecap='round'
+                    strokeLinejoin='round'
+                    strokeWidth={2}
+                    d='M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1'
+                  />
+                </svg>
               </div>
             </div>
           </div>
 
-          <div className='bg-white p-6 rounded-xl shadow-sm border'>
+          <div className='bg-white rounded-xl shadow-sm p-6 border border-gray-200'>
             <div className='flex items-center justify-between'>
               <div>
-                <p className='text-sm font-medium text-gray-600'>Active Positions</p>
-                <p className='text-2xl font-bold text-purple-600'>3</p>
+                <p className='text-sm font-medium text-gray-600'>Total Collateral</p>
+                <p className='text-2xl font-bold text-gray-900'>${summary.totalCollateralValue.toLocaleString()}</p>
               </div>
-              <div className='w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center'>
-                <span className='text-2xl'>📊</span>
+              <div className='w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center'>
+                <svg className='w-6 h-6 text-green-600' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
+                  <path
+                    strokeLinecap='round'
+                    strokeLinejoin='round'
+                    strokeWidth={2}
+                    d='M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z'
+                  />
+                </svg>
+              </div>
+            </div>
+          </div>
+
+          <div className='bg-white rounded-xl shadow-sm p-6 border border-gray-200'>
+            <div className='flex items-center justify-between'>
+              <div>
+                <p className='text-sm font-medium text-gray-600'>Avg Health Factor</p>
+                <p className='text-2xl font-bold text-gray-900'>{summary.averageHealthFactor.toFixed(2)}</p>
+              </div>
+              <div
+                className={`w-12 h-12 rounded-lg flex items-center justify-center ${
+                  summary.averageHealthFactor > 2
+                    ? 'bg-green-100'
+                    : summary.averageHealthFactor > 1.5
+                    ? 'bg-yellow-100'
+                    : 'bg-red-100'
+                }`}
+              >
+                <svg
+                  className={`w-6 h-6 ${
+                    summary.averageHealthFactor > 2
+                      ? 'text-green-600'
+                      : summary.averageHealthFactor > 1.5
+                      ? 'text-yellow-600'
+                      : 'text-red-600'
+                  }`}
+                  fill='none'
+                  stroke='currentColor'
+                  viewBox='0 0 24 24'
+                >
+                  <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M13 10V3L4 14h7v7l9-11h-7z' />
+                </svg>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Positions Table */}
-        <div className='bg-white rounded-xl shadow-sm border overflow-hidden'>
-          <div className='p-6 border-b'>
-            <div className='flex justify-between items-center'>
-              <h2 className='text-xl font-semibold text-gray-900'>All Positions</h2>
-              <button className='px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700'>
-                Create Sale Order
+        {/* Positions List */}
+        {positions.length === 0 ? (
+          <div className='bg-white rounded-xl shadow-sm border border-gray-200'>
+            <div className='text-center py-12'>
+              <div className='w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4'>
+                <svg className='w-12 h-12 text-gray-400' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
+                  <path
+                    strokeLinecap='round'
+                    strokeLinejoin='round'
+                    strokeWidth={2}
+                    d='M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10'
+                  />
+                </svg>
+              </div>
+              <h3 className='text-lg font-medium text-gray-900 mb-2'>No Debt Positions</h3>
+              <p className='text-gray-600 mb-6 max-w-md mx-auto'>
+                You haven't created any debt positions yet. Create your first position to start leveraging your assets.
+              </p>
+              <button
+                onClick={() => setIsCreateModalOpen(true)}
+                className='bg-blue-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors'
+              >
+                Create Your First Position
               </button>
             </div>
           </div>
+        ) : (
+          <div className='space-y-6'>
+            {positions.map((position, index) => {
+              const healthFactor = formatHealthFactor(position.healthFactor);
 
-          <div className='overflow-x-auto'>
-            <table className='w-full'>
-              <thead className='bg-gray-50'>
-                <tr>
-                  <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>
-                    Asset
-                  </th>
-                  <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>
-                    Debt Amount
-                  </th>
-                  <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>
-                    Collateral
-                  </th>
-                  <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>
-                    Health Factor
-                  </th>
-                  <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>
-                    APY
-                  </th>
-                  <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className='bg-white divide-y divide-gray-200'>
-                <tr className='hover:bg-gray-50'>
-                  <td className='px-6 py-4 whitespace-nowrap'>
-                    <div className='flex items-center'>
-                      <div className='w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white font-bold'>
-                        U
-                      </div>
-                      <div className='ml-4'>
-                        <div className='text-sm font-medium text-gray-900'>USDC</div>
-                        <div className='text-sm text-gray-500'>Stablecoin</div>
+              return (
+                <div key={index} className='bg-white rounded-xl shadow-sm border border-gray-200 p-6'>
+                  <div className='flex justify-between items-start mb-4'>
+                    <div>
+                      <h3 className='text-lg font-semibold text-gray-900 mb-1'>Position #{index + 1}</h3>
+                      <p className='text-sm text-gray-600 font-mono'>{position.address}</p>
+                    </div>
+                    <div
+                      className={`px-3 py-1 rounded-full text-sm font-medium ${
+                        healthFactor.status === 'safe'
+                          ? 'bg-green-100 text-green-800'
+                          : healthFactor.status === 'warning'
+                          ? 'bg-yellow-100 text-yellow-800'
+                          : healthFactor.status === 'danger'
+                          ? 'bg-red-100 text-red-800'
+                          : 'bg-gray-100 text-gray-800'
+                      }`}
+                    >
+                      {healthFactor.label}
+                    </div>
+                  </div>
+
+                  <div className='grid grid-cols-1 md:grid-cols-3 gap-6'>
+                    {/* Collateral */}
+                    <div>
+                      <h4 className='text-sm font-medium text-gray-700 mb-3'>Collateral</h4>
+                      <div className='space-y-2'>
+                        {position.collaterals.map((collateral, idx) => (
+                          <div key={idx} className='flex justify-between items-center'>
+                            <span className='text-sm text-gray-600'>{collateral.symbol}</span>
+                            <div className='text-right'>
+                              <div className='text-sm font-medium'>{collateral.balanceFormatted}</div>
+                              <div className='text-xs text-gray-500'>${collateral.valueInUSD.toLocaleString()}</div>
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     </div>
-                  </td>
-                  <td className='px-6 py-4 whitespace-nowrap'>
-                    <div className='text-sm font-medium text-gray-900'>$8,500.00</div>
-                    <div className='text-sm text-gray-500'>8,500 USDC</div>
-                  </td>
-                  <td className='px-6 py-4 whitespace-nowrap'>
-                    <div className='text-sm font-medium text-gray-900'>$25,000.00</div>
-                    <div className='text-sm text-gray-500'>10 ETH</div>
-                  </td>
-                  <td className='px-6 py-4 whitespace-nowrap'>
-                    <span className='inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800'>
-                      2.8 - Safe
-                    </span>
-                  </td>
-                  <td className='px-6 py-4 whitespace-nowrap text-sm text-gray-900'>5.2%</td>
-                  <td className='px-6 py-4 whitespace-nowrap text-sm font-medium'>
-                    <button className='text-blue-600 hover:text-blue-900 mr-4'>Sell</button>
-                    <button className='text-gray-600 hover:text-gray-900'>Details</button>
-                  </td>
-                </tr>
 
-                <tr className='hover:bg-gray-50'>
-                  <td className='px-6 py-4 whitespace-nowrap'>
-                    <div className='flex items-center'>
-                      <div className='w-10 h-10 bg-purple-500 rounded-full flex items-center justify-center text-white font-bold'>
-                        E
-                      </div>
-                      <div className='ml-4'>
-                        <div className='text-sm font-medium text-gray-900'>ETH</div>
-                        <div className='text-sm text-gray-500'>Ethereum</div>
+                    {/* Debt */}
+                    <div>
+                      <h4 className='text-sm font-medium text-gray-700 mb-3'>Debt</h4>
+                      <div className='space-y-2'>
+                        {position.debts.map((debt, idx) => (
+                          <div key={idx} className='flex justify-between items-center'>
+                            <span className='text-sm text-gray-600'>{debt.symbol}</span>
+                            <div className='text-right'>
+                              <div className='text-sm font-medium'>{debt.balanceFormatted}</div>
+                              <div className='text-xs text-gray-500'>${debt.valueInUSD.toLocaleString()}</div>
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     </div>
-                  </td>
-                  <td className='px-6 py-4 whitespace-nowrap'>
-                    <div className='text-sm font-medium text-gray-900'>$3,950.00</div>
-                    <div className='text-sm text-gray-500'>1.58 ETH</div>
-                  </td>
-                  <td className='px-6 py-4 whitespace-nowrap'>
-                    <div className='text-sm font-medium text-gray-900'>$12,000.00</div>
-                    <div className='text-sm text-gray-500'>12,000 USDC</div>
-                  </td>
-                  <td className='px-6 py-4 whitespace-nowrap'>
-                    <span className='inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800'>
-                      1.9 - Warning
-                    </span>
-                  </td>
-                  <td className='px-6 py-4 whitespace-nowrap text-sm text-gray-900'>3.8%</td>
-                  <td className='px-6 py-4 whitespace-nowrap text-sm font-medium'>
-                    <button className='text-blue-600 hover:text-blue-900 mr-4'>Sell</button>
-                    <button className='text-gray-600 hover:text-gray-900'>Details</button>
-                  </td>
-                </tr>
 
-                <tr className='hover:bg-gray-50'>
-                  <td className='px-6 py-4 whitespace-nowrap'>
-                    <div className='flex items-center'>
-                      <div className='w-10 h-10 bg-green-500 rounded-full flex items-center justify-center text-white font-bold'>
-                        W
+                    {/* Health Factor */}
+                    <div>
+                      <h4 className='text-sm font-medium text-gray-700 mb-3'>Health Factor</h4>
+                      <div className='text-2xl font-bold mb-1' style={{ color: healthFactor.color }}>
+                        {healthFactor.value.toFixed(2)}
                       </div>
-                      <div className='ml-4'>
-                        <div className='text-sm font-medium text-gray-900'>WBTC</div>
-                        <div className='text-sm text-gray-500'>Wrapped Bitcoin</div>
-                      </div>
+                      <div className='text-xs text-gray-500'>{healthFactor.value > 1 ? 'Safe' : 'At Risk'}</div>
                     </div>
-                  </td>
-                  <td className='px-6 py-4 whitespace-nowrap'>
-                    <div className='text-sm font-medium text-gray-900'>$0.00</div>
-                    <div className='text-sm text-gray-500'>0 WBTC</div>
-                  </td>
-                  <td className='px-6 py-4 whitespace-nowrap'>
-                    <div className='text-sm font-medium text-gray-900'>$8,000.00</div>
-                    <div className='text-sm text-gray-500'>0.2 WBTC</div>
-                  </td>
-                  <td className='px-6 py-4 whitespace-nowrap'>
-                    <span className='inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800'>
-                      ∞ - No Debt
-                    </span>
-                  </td>
-                  <td className='px-6 py-4 whitespace-nowrap text-sm text-gray-900'>0%</td>
-                  <td className='px-6 py-4 whitespace-nowrap text-sm font-medium'>
-                    <button className='text-gray-400 cursor-not-allowed mr-4'>Sell</button>
-                    <button className='text-gray-600 hover:text-gray-900'>Details</button>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+                  </div>
+
+                  {/* Actions */}
+                  <div className='mt-6 pt-4 border-t border-gray-200'>
+                    <div className='flex space-x-3'>
+                      <button className='px-4 py-2 bg-blue-50 text-blue-600 rounded-lg text-sm font-medium hover:bg-blue-100 transition-colors'>
+                        Manage Position
+                      </button>
+                      <button className='px-4 py-2 bg-gray-50 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-100 transition-colors'>
+                        View Details
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
-        </div>
+        )}
+      </div>
 
-        {/* Help Section */}
-        <div className='mt-8 bg-blue-50 border border-blue-200 rounded-xl p-6'>
-          <div className='flex items-start gap-4'>
-            <div className='text-3xl'>💡</div>
-            <div>
-              <h3 className='text-lg font-semibold text-blue-900 mb-2'>Liquidation Protection Tips</h3>
-              <ul className='text-sm text-blue-800 space-y-1'>
-                <li>• Create sale orders for positions with Health Factor below 2.0</li>
-                <li>• Monitor your positions regularly to avoid sudden liquidations</li>
-                <li>• Consider partial sales to maintain healthy ratios</li>
-              </ul>
-            </div>
-          </div>
-        </div>
-      </main>
+      {/* Create Position Modal */}
+      <CreatePositionModal isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} />
     </div>
   );
 }

@@ -1,7 +1,7 @@
 import { createConfig, http } from 'wagmi';
 import { mainnet, sepolia } from 'wagmi/chains';
 import { coinbaseWallet, injected, metaMask, safe, walletConnect } from 'wagmi/connectors';
-import { ChainId, SUPPORTED_CHAINS } from './contracts';
+import { ChainId, SUPPORTED_CHAINS } from './contracts/chains';
 
 export const config = createConfig({
   chains: [sepolia, mainnet],
