@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useAccount } from 'wagmi';
 import CreatePositionModal from '../../components/CreatePositionModal';
+import Navigation from '../../components/Navigation';
 import { formatHealthFactor, useUserDebtPositions, useUserPositionSummary } from '../../lib/hooks/useDebtPositions';
 
 export default function PositionsPage() {
@@ -13,10 +14,13 @@ export default function PositionsPage() {
 
   if (!isConnected) {
     return (
-      <div className='min-h-screen bg-gray-50 flex items-center justify-center'>
-        <div className='text-center'>
-          <h1 className='text-2xl font-bold text-gray-900 mb-4'>Connect Your Wallet</h1>
-          <p className='text-gray-600'>Please connect your wallet to view your debt positions.</p>
+      <div className='min-h-screen bg-gray-50'>
+        <Navigation />
+        <div className='flex items-center justify-center' style={{ minHeight: 'calc(100vh - 4rem)' }}>
+          <div className='text-center'>
+            <h1 className='text-2xl font-bold text-gray-900 mb-4'>Connect Your Wallet</h1>
+            <p className='text-gray-600'>Please connect your wallet to view your debt positions.</p>
+          </div>
         </div>
       </div>
     );
@@ -24,10 +28,13 @@ export default function PositionsPage() {
 
   if (isLoading) {
     return (
-      <div className='min-h-screen bg-gray-50 flex items-center justify-center'>
-        <div className='text-center'>
-          <div className='animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4'></div>
-          <p className='text-gray-600'>Loading your positions...</p>
+      <div className='min-h-screen bg-gray-50'>
+        <Navigation />
+        <div className='flex items-center justify-center' style={{ minHeight: 'calc(100vh - 4rem)' }}>
+          <div className='text-center'>
+            <div className='animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4'></div>
+            <p className='text-gray-600'>Loading your positions...</p>
+          </div>
         </div>
       </div>
     );
@@ -35,10 +42,13 @@ export default function PositionsPage() {
 
   if (error) {
     return (
-      <div className='min-h-screen bg-gray-50 flex items-center justify-center'>
-        <div className='text-center'>
-          <h1 className='text-2xl font-bold text-red-600 mb-4'>Error Loading Positions</h1>
-          <p className='text-gray-600'>Failed to load positions. Please try again.</p>
+      <div className='min-h-screen bg-gray-50'>
+        <Navigation />
+        <div className='flex items-center justify-center' style={{ minHeight: 'calc(100vh - 4rem)' }}>
+          <div className='text-center'>
+            <h1 className='text-2xl font-bold text-red-600 mb-4'>Error Loading Positions</h1>
+            <p className='text-gray-600'>Failed to load positions. Please try again.</p>
+          </div>
         </div>
       </div>
     );
@@ -46,6 +56,8 @@ export default function PositionsPage() {
 
   return (
     <div className='min-h-screen bg-gray-50'>
+      <Navigation />
+
       <div className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8'>
         {/* Header */}
         <div className='flex justify-between items-center mb-8'>

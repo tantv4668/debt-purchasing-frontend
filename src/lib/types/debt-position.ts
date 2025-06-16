@@ -46,6 +46,21 @@ export interface DebtAsset {
 }
 
 export interface CreatePositionParams {
+  collateralAssets: Array<{
+    asset: `0x${string}`;
+    amount: bigint;
+    symbol: TokenSymbol;
+  }>;
+  borrowAssets: Array<{
+    asset: `0x${string}`;
+    amount: bigint;
+    symbol: TokenSymbol;
+    interestRateMode: 1 | 2;
+  }>;
+}
+
+// Legacy single-collateral interface for backward compatibility
+export interface CreateSingleCollateralPositionParams {
   collateralAsset: `0x${string}`;
   collateralAmount: bigint;
   borrowAsset: `0x${string}`;
@@ -73,6 +88,25 @@ export interface HealthFactorInfo {
 
 // Position creation flow state
 export interface PositionCreationState {
+  step: 'select-assets' | 'set-amounts' | 'review' | 'pending' | 'success' | 'error';
+  collateralAssets: Array<{
+    asset: TokenSymbol;
+    amount: string;
+    selected: boolean;
+  }>;
+  borrowAssets: Array<{
+    asset: TokenSymbol;
+    amount: string;
+    selected: boolean;
+    interestRateMode: 1 | 2;
+  }>;
+  predictedAddress?: `0x${string}`;
+  transactionHash?: `0x${string}`;
+  error?: string;
+}
+
+// Legacy single-collateral state for backward compatibility
+export interface SingleCollateralPositionCreationState {
   step: 'select-assets' | 'set-amounts' | 'review' | 'pending' | 'success' | 'error';
   collateralAsset?: `0x${string}`;
   borrowAsset?: `0x${string}`;
