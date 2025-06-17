@@ -1,6 +1,6 @@
 'use client';
 
-import { ConnectButton } from '@rainbow-me/rainbowkit';
+// AppKit button will be used instead
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
@@ -39,7 +39,7 @@ export default function Navigation() {
               ))}
             </nav>
           </div>
-          <ConnectButton />
+          <appkit-button />
         </div>
       </div>
     </header>

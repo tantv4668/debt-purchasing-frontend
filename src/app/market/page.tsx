@@ -10,7 +10,7 @@ import {
   getHealthFactorStatus,
   truncateAddress,
 } from '@/lib/utils';
-import { ConnectButton } from '@rainbow-me/rainbowkit';
+// AppKit button will be used instead
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { Address } from 'viem';
@@ -209,6 +209,7 @@ export default function MarketPage() {
       safe: 'bg-green-100 text-green-800',
       warning: 'bg-yellow-100 text-yellow-800',
       danger: 'bg-red-100 text-red-800',
+      critical: 'bg-red-200 text-red-900',
     };
     return (
       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${colors[status]}`}>
@@ -223,7 +224,7 @@ export default function MarketPage() {
         <div className='bg-white p-8 rounded-2xl shadow-xl text-center max-w-md mx-auto'>
           <h1 className='text-2xl font-bold text-gray-900 mb-4'>Connect Your Wallet</h1>
           <p className='text-gray-600 mb-6'>Please connect your wallet to browse the market.</p>
-          <ConnectButton />
+          <appkit-button />
         </div>
       </div>
     );
@@ -257,7 +258,7 @@ export default function MarketPage() {
                 </Link>
               </nav>
             </div>
-            <ConnectButton />
+            <appkit-button />
           </div>
         </div>
       </header>

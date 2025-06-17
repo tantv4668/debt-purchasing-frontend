@@ -1,6 +1,6 @@
 'use client';
 
-import { ConnectButton } from '@rainbow-me/rainbowkit';
+// AppKit button will be used instead
 import Link from 'next/link';
 
 export default function HomePage() {
@@ -15,7 +15,7 @@ export default function HomePage() {
             </div>
             <h1 className='text-2xl font-bold text-gray-900'>Debt Protocol</h1>
           </div>
-          <ConnectButton />
+          <appkit-button />
         </div>
       </header>
 

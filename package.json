@@ -4,10 +4,13 @@
   "description": "Next.js frontend for the debt purchasing protocol",
   "private": true,
   "scripts": {
-    "dev": "NODE_NO_WARNINGS=1 NODE_OPTIONS='--max-old-space-size=4096 --no-deprecation' next dev",
-    "dev:clean": "rm -rf .next && NODE_NO_WARNINGS=1 NODE_OPTIONS='--max-old-space-size=4096 --no-deprecation' next dev",
-    "dev:debug": "NODE_OPTIONS='--inspect --max-old-space-size=4096 --no-deprecation' next dev",
-    "dev:debug-brk": "NODE_OPTIONS='--inspect-brk --max-old-space-size=4096 --no-deprecation' next dev",
+    "dev": "NODE_NO_WARNINGS=1 NODE_OPTIONS='--max-old-space-size=8192 --no-deprecation' next dev --turbo",
+    "dev:regular": "NODE_NO_WARNINGS=1 NODE_OPTIONS='--max-old-space-size=4096 --no-deprecation' next dev",
+    "dev:clean": "rm -rf .next && NODE_NO_WARNINGS=1 NODE_OPTIONS='--max-old-space-size=8192 --no-deprecation' next dev --turbo",
+    "dev:ultra": "NEXT_TELEMETRY_DISABLED=1 NODE_NO_WARNINGS=1 NODE_OPTIONS='--max-old-space-size=8192 --no-deprecation' next dev --turbo",
+    "dev:debug": "NODE_OPTIONS='--inspect=0.0.0.0:9229 --max-old-space-size=8192 --no-deprecation' next dev --turbo",
+    "dev:debug-brk": "NODE_OPTIONS='--inspect-brk=0.0.0.0:9229 --max-old-space-size=8192 --no-deprecation' next dev --turbo",
+    "dev:ui-only": "UI_ONLY=true NODE_NO_WARNINGS=1 NODE_OPTIONS='--max-old-space-size=4096 --no-deprecation' next dev --turbo",
     "build": "NODE_NO_WARNINGS=1 NODE_OPTIONS='--no-deprecation' next build",
     "build:analyze": "ANALYZE=true NODE_NO_WARNINGS=1 NODE_OPTIONS='--no-deprecation' next build",
     "start": "next start",
@@ -17,6 +20,8 @@
   "dependencies": {
     "@hookform/resolvers": "^5.0.1",
     "@rainbow-me/rainbowkit": "^2.2.5",
+    "@reown/appkit": "^1.7.10",
+    "@reown/appkit-adapter-wagmi": "^1.7.10",
     "@tailwindcss/forms": "^0.5.10",
     "@tailwindcss/typography": "^0.5.16",
     "@tanstack/react-query": "^5.79.2",
@@ -43,7 +48,8 @@
     "eslint": "8.56.0",
     "eslint-config-next": "14.0.4",
     "postcss": "8.4.32",
-    "tailwindcss": "3.3.6"
+    "tailwindcss": "3.3.6",
+    "@wagmi/cli": "^2.1.0"
   },
   "keywords": [
     "defi",

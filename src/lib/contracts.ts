@@ -123,7 +123,7 @@ export function getTokenConfig(chainId: ChainId) {
   } as const;
 }
 
-export type TokenSymbol = 'WETH' | 'USDC' | 'DAI' | 'WBTC';
+export type TokenSymbol = keyof typeof import('./contracts/tokens').SUPPORTED_TOKENS;
 
 // Export contract addresses for backward compatibility
 export { ChainId, CONTRACT_ADDRESSES };

@@ -1,6 +1,6 @@
 'use client';
 
-import { ConnectButton } from '@rainbow-me/rainbowkit';
+// AppKit button will be used instead
 import Link from 'next/link';
 import { useAccount } from 'wagmi';
 
@@ -14,7 +14,7 @@ export default function DashboardPage() {
           <h1 className='text-2xl font-bold text-gray-900 mb-4'>Connect Your Wallet</h1>
           <p className='text-gray-600 mb-6'>Please connect your wallet to access the dashboard.</p>
           <div className='flex justify-center'>
-            <ConnectButton />
+            <appkit-button />
           </div>
         </div>
       </div>
@@ -49,7 +49,7 @@ export default function DashboardPage() {
                 </Link>
               </nav>
             </div>
-            <ConnectButton />
+            <appkit-button />
           </div>
         </div>
       </header>

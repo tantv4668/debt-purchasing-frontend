@@ -1,7 +1,8 @@
 import { useMemo } from 'react';
 import { encodeFunctionData, formatUnits } from 'viem';
 import { useAccount, useReadContract, useReadContracts, useWriteContract } from 'wagmi';
-import { AAVE_ROUTER_ABI, ChainId, ERC20_ABI, getAaveRouterAddress, getTokenConfig } from '../contracts';
+import { AAVE_ROUTER_ABI, ChainId, ERC20_ABI, getAaveRouterAddress } from '../contracts';
+import { SUPPORTED_TOKENS } from '../contracts/tokens';
 import type { CreatePositionParams, DebtPosition, UserPositionSummary } from '../types/debt-position';
 
 // Hook to get user's debt positions
@@ -68,7 +69,15 @@ export function useCreatePosition() {
       throw new Error('Address or predicted address not available');
     }
 
-    const { collateralAsset, collateralAmount, borrowAsset, borrowAmount, interestRateMode } = params;
+    const { collateralAssets, borrowAssets } = params;
+
+    // Validate that we have at least one collateral and one borrow asset
+    if (!collateralAssets || collateralAssets.length === 0) {
+      throw new Error('At least one collateral asset is required');
+    }
+    if (!borrowAssets || borrowAssets.length === 0) {
+      throw new Error('At least one borrow asset is required');
+    }
 
     // Prepare multicall data similar to the test
     const multicallData: `0x${string}`[] = [];
@@ -81,21 +90,31 @@ export function useCreatePosition() {
     });
     multicallData.push(createDebtData);
 
-    // 2. Supply collateral
-    const supplyData = encodeFunctionData({
-      abi: AAVE_ROUTER_ABI,
-      functionName: 'callSupply',
-      args: [predictedAddress, collateralAsset, collateralAmount],
-    });
-    multicallData.push(supplyData);
+    // 2. Supply all collateral assets
+    for (const collateral of collateralAssets) {
+      if (!collateral.asset || collateral.asset === '0x0000000000000000000000000000000000000000') {
+        throw new Error(`Invalid collateral asset address: ${collateral.asset}`);
+      }
+      const supplyData = encodeFunctionData({
+        abi: AAVE_ROUTER_ABI,
+        functionName: 'callSupply',
+        args: [predictedAddress, collateral.asset, collateral.amount],
+      });
+      multicallData.push(supplyData);
+    }
 
-    // 3. Borrow assets
-    const borrowData = encodeFunctionData({
-      abi: AAVE_ROUTER_ABI,
-      functionName: 'callBorrow',
-      args: [predictedAddress, borrowAsset, borrowAmount, BigInt(interestRateMode), address],
-    });
-    multicallData.push(borrowData);
+    // 3. Borrow all assets
+    for (const borrowAsset of borrowAssets) {
+      if (!borrowAsset.asset || borrowAsset.asset === '0x0000000000000000000000000000000000000000') {
+        throw new Error(`Invalid borrow asset address: ${borrowAsset.asset}`);
+      }
+      const borrowData = encodeFunctionData({
+        abi: AAVE_ROUTER_ABI,
+        functionName: 'callBorrow',
+        args: [predictedAddress, borrowAsset.asset, borrowAsset.amount, BigInt(borrowAsset.interestRateMode), address],
+      });
+      multicallData.push(borrowData);
+    }
 
     // Execute multicall
     return writeContract({
@@ -116,33 +135,38 @@ export function useCreatePosition() {
 // Hook to get user's token balances
 export function useTokenBalances() {
   const { address } = useAccount();
-  const tokens = getTokenConfig(ChainId.SEPOLIA); // Default to Sepolia for now
+  const chainId = ChainId.SEPOLIA; // Default to Sepolia for now
 
-  const contracts = Object.values(tokens).map(token => ({
-    address: token.address,
-    abi: ERC20_ABI,
-    functionName: 'balanceOf' as const,
-    args: address ? [address] : undefined,
-  }));
+  // Get token contracts for supported tokens on current chain
+  const tokenContracts = Object.entries(SUPPORTED_TOKENS)
+    .filter(([, token]) => token.addresses[chainId]) // Only include tokens available on current chain
+    .map(([symbol, token]) => ({
+      address: token.addresses[chainId] as `0x${string}`,
+      abi: ERC20_ABI,
+      functionName: 'balanceOf' as const,
+      args: address ? [address] : undefined,
+      symbol,
+      decimals: token.decimals,
+    }));
 
   const { data: balances, isLoading } = useReadContracts({
-    contracts,
+    contracts: tokenContracts,
   });
 
   const tokenBalances = useMemo(() => {
     if (!balances) return {};
 
     const result: Record<string, { balance: bigint; formatted: string }> = {};
-    Object.entries(tokens).forEach(([symbol, token], index) => {
+    tokenContracts.forEach((contract, index) => {
       const balance = (balances[index]?.result as bigint) || BigInt(0);
-      result[symbol] = {
+      result[contract.symbol] = {
         balance,
-        formatted: formatUnits(balance, token.decimals),
+        formatted: formatUnits(balance, contract.decimals),
       };
     });
 
     return result;
-  }, [balances, tokens]);
+  }, [balances, tokenContracts]);
 
   return {
     tokenBalances,

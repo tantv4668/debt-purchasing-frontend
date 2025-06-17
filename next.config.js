@@ -7,7 +7,7 @@ const nextConfig = {
     // Reduce memory usage
     workerThreads: false,
     // Enable faster refresh
-    optimizePackageImports: ['@rainbow-me/rainbowkit', 'wagmi', 'viem'],
+    optimizePackageImports: ['wagmi', 'viem'],
   },
 
   // Webpack optimizations
@@ -67,9 +67,14 @@ const nextConfig = {
       };
     }
     
-    // Disable webpack cache in development to prevent snapshot issues
+    // Enable webpack cache for faster rebuilds (PERFORMANCE BOOST!)
     if (dev) {
-      config.cache = false;
+      config.cache = {
+        type: 'filesystem',
+        buildDependencies: {
+          config: [__filename],
+        },
+      };
     }
     
     return config;

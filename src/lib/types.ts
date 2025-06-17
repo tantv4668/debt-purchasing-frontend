@@ -91,11 +91,47 @@ export interface TokenBalance {
 export interface MarketOrder {
   id: string;
   type: 'full' | 'partial';
-  order: FullSellOrder | PartialSellOrder;
-  position: DebtPosition;
+  seller: Address;
+  debtPosition: {
+    address: Address;
+    owner: Address;
+    nonce: bigint;
+    totalCollateralBase: bigint;
+    totalDebtBase: bigint;
+    availableBorrowsBase: bigint;
+    currentLiquidationThreshold: bigint;
+    ltv: bigint;
+    healthFactor: bigint;
+    collaterals: {
+      token: Address;
+      symbol: string;
+      name: string;
+      decimals: number;
+      balance: bigint;
+      balanceUSD: bigint;
+    }[];
+    debts: {
+      token: Address;
+      symbol: string;
+      name: string;
+      decimals: number;
+      balance: bigint;
+      balanceUSD: bigint;
+    }[];
+  };
+  triggerHealthFactor: number;
+  currentHealthFactor: number;
   estimatedProfit?: bigint;
-  timeRemaining: number; // seconds
-  isTriggerable: boolean;
+  validUntil: Date;
+  isActive: boolean;
+  // Full order specific fields
+  percentOfEquity?: number;
+  paymentToken?: Address;
+  // Partial order specific fields
+  repayToken?: Address;
+  repayAmount?: bigint;
+  bonus?: number;
+  collateralTokens?: Address[];
 }
 
 // Order execution result

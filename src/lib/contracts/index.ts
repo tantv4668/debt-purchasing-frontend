@@ -35,3 +35,8 @@ export function getAaveOracleConfig(chainId: ChainId) {
 export function getAavePoolConfig(chainId: ChainId) {
   return getContractConfig(chainId, 'aavePool');
 }
+
+// Helper function to get AaveRouter address directly
+export function getAaveRouterAddress(chainId: ChainId): `0x${string}` {
+  return getContractAddress(chainId, 'aaveRouter') as `0x${string}`;
+}

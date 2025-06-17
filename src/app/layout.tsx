@@ -2,6 +2,7 @@ import { ReactPlugin } from '@stagewise-plugins/react';
 import { StagewiseToolbar } from '@stagewise/toolbar-next';
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
+import { headers } from 'next/headers';
 import './globals.css';
 import { Providers } from './providers';
 
@@ -19,11 +20,14 @@ export const metadata: Metadata = {
   keywords: ['DeFi', 'Aave', 'Debt Trading', 'Liquidation Protection'],
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const headersList = await headers();
+  const cookies = headersList.get('cookie');
+
   return (
     <html lang='en' suppressHydrationWarning>
       <body className={inter.className}>
-        <Providers>{children}</Providers>
+        <Providers cookies={cookies}>{children}</Providers>
         <StagewiseToolbar
           config={{
             plugins: [ReactPlugin],
