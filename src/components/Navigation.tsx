@@ -20,9 +20,6 @@ export default function Navigation() {
         <div className='flex justify-between items-center h-16'>
           <div className='flex items-center space-x-4'>
             <Link href='/' className='flex items-center gap-3'>
-              <div className='w-8 h-8 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg flex items-center justify-center text-white font-bold text-sm'>
-                DP
-              </div>
               <span className='text-xl font-bold text-gray-900'>Debt Protocol</span>
             </Link>
             <nav className='hidden md:flex space-x-6 ml-8'>
@@ -39,7 +36,9 @@ export default function Navigation() {
               ))}
             </nav>
           </div>
-          <appkit-button />
+          <div className='appkit-theme-adapter'>
+            <appkit-button />
+          </div>
         </div>
       </div>
     </header>

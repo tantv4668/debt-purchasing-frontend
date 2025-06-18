@@ -224,7 +224,9 @@ export default function MarketPage() {
         <div className='bg-white p-8 rounded-2xl shadow-xl text-center max-w-md mx-auto'>
           <h1 className='text-2xl font-bold text-gray-900 mb-4'>Connect Your Wallet</h1>
           <p className='text-gray-600 mb-6'>Please connect your wallet to browse the market.</p>
-          <appkit-button />
+          <div className='flex justify-center mt-4'>
+            <appkit-button />
+          </div>
         </div>
       </div>
     );
@@ -238,9 +240,6 @@ export default function MarketPage() {
           <div className='flex justify-between items-center'>
             <div className='flex items-center gap-8'>
               <Link href='/' className='flex items-center gap-3'>
-                <div className='w-8 h-8 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg flex items-center justify-center text-white font-bold'>
-                  DP
-                </div>
                 <span className='text-xl font-bold text-gray-900'>Debt Protocol</span>
               </Link>
               <nav className='hidden md:flex space-x-8'>

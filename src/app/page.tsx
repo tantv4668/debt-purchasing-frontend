@@ -10,9 +10,6 @@ export default function HomePage() {
       <header className='p-4 md:p-8 bg-white/95 backdrop-blur-sm border-b border-gray-200'>
         <div className='max-w-7xl mx-auto flex justify-between items-center'>
           <div className='flex items-center gap-3'>
-            <div className='w-10 h-10 bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl flex items-center justify-center text-white font-bold text-lg'>
-              DP
-            </div>
             <h1 className='text-2xl font-bold text-gray-900'>Debt Protocol</h1>
           </div>
           <appkit-button />

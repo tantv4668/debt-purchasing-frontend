@@ -20,6 +20,9 @@ export default function PositionsPage() {
           <div className='text-center'>
             <h1 className='text-2xl font-bold text-gray-900 mb-4'>Connect Your Wallet</h1>
             <p className='text-gray-600'>Please connect your wallet to view your debt positions.</p>
+            <div className='flex justify-center mt-4'>
+              <appkit-button />
+            </div>
           </div>
         </div>
       </div>

@@ -1,11 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { parseUnits } from 'viem';
-import { useAccount, useWriteContract } from 'wagmi';
-import { ChainId, ERC20_ABI, getAaveRouterAddress } from '../lib/contracts';
+import { useAccount } from 'wagmi';
+import { ChainId } from '../lib/contracts';
 import { SUPPORTED_TOKENS } from '../lib/contracts/tokens';
+import { useMultiTokenOperations } from '../lib/hooks/useContracts';
 import { useCreatePosition, usePredictDebtAddress, useTokenBalances } from '../lib/hooks/useDebtPositions';
+import { useModalCache } from '../lib/hooks/useModalCache';
 import type { CreatePositionParams, TokenSymbol } from '../lib/types/debt-position';
 
 interface CreateDebtModalProps {
@@ -20,53 +22,78 @@ export default function CreateDebtModal({ isOpen, onClose }: CreateDebtModalProp
   const { tokenBalances } = useTokenBalances();
   const { predictedAddress } = usePredictDebtAddress();
   const { createPosition, isPending: isCreating } = useCreatePosition();
-  const { writeContract: approveToken } = useWriteContract();
+  const multiTokenOps = useMultiTokenOperations(ChainId.SEPOLIA);
+  const { cachedState, saveToCache, clearCache, hasValidCache } = useModalCache();
 
   const [step, setStep] = useState<Step>('select-supply');
-  const [txHash, setTxHash] = useState('');
   const [isApproving, setIsApproving] = useState(false);
+  const [approvedTokens, setApprovedTokens] = useState<Set<string>>(new Set());
+  const [hasInitialized, setHasInitialized] = useState(false);
+  const [transactionError, setTransactionError] = useState<string | null>(null);
 
-  // Multi-collateral state
-  const [collateralAssets, setCollateralAssets] = useState<
-    Array<{
-      symbol: TokenSymbol;
-      amount: string;
-      selected: boolean;
-    }>
-  >(() => {
-    // Initialize with all supported tokens
-    return Object.keys(SUPPORTED_TOKENS).map(symbol => ({
+  // Initialize default state
+  const getDefaultCollateralAssets = () =>
+    Object.keys(SUPPORTED_TOKENS).map(symbol => ({
       symbol: symbol as TokenSymbol,
       amount: '',
       selected: false,
     }));
-  });
 
-  // Multi-borrow state
-  const [borrowAssets, setBorrowAssets] = useState<
-    Array<{
-      symbol: TokenSymbol;
-      amount: string;
-      selected: boolean;
-      interestRateMode: 1 | 2;
-    }>
-  >(() => {
-    // Initialize with all supported tokens
-    return Object.keys(SUPPORTED_TOKENS).map(symbol => ({
+  const getDefaultBorrowAssets = () =>
+    Object.keys(SUPPORTED_TOKENS).map(symbol => ({
       symbol: symbol as TokenSymbol,
       amount: '',
       selected: false,
       interestRateMode: 2 as 1 | 2,
     }));
-  });
 
-  // Get tokens configuration for current chain (defaulting to Sepolia)
+  const [collateralAssets, setCollateralAssets] = useState(getDefaultCollateralAssets);
+  const [borrowAssets, setBorrowAssets] = useState(getDefaultBorrowAssets);
+
+  // Auto-restore cached data when modal opens
+  useEffect(() => {
+    if (isOpen && !hasInitialized && hasValidCache() && cachedState) {
+      setStep(cachedState.step);
+      setCollateralAssets(cachedState.collateralAssets);
+      setBorrowAssets(cachedState.borrowAssets);
+      setApprovedTokens(new Set(cachedState.approvedTokens));
+      setHasInitialized(true);
+    } else if (isOpen && !hasInitialized) {
+      setHasInitialized(true);
+    }
+  }, [isOpen, hasInitialized, hasValidCache, cachedState]);
+
+  // Reset hasInitialized when modal closes
+  useEffect(() => {
+    if (!isOpen) {
+      setHasInitialized(false);
+    }
+  }, [isOpen]);
+
+  // Manual reset function
+  const resetModal = () => {
+    setStep('select-supply');
+    setApprovedTokens(new Set());
+    setCollateralAssets(getDefaultCollateralAssets());
+    setBorrowAssets(getDefaultBorrowAssets());
+    clearCache();
+  };
+
+  const handleClose = () => {
+    onClose();
+  };
+
+  const handleSuccessClose = () => {
+    resetModal();
+    onClose();
+  };
+
+  // Get tokens configuration for current chain
   const getTokenConfig = (chainId: ChainId) => {
     const tokenConfig: Partial<
       Record<TokenSymbol, { address: `0x${string}`; symbol: string; name: string; decimals: number }>
     > = {};
 
-    // Map all supported tokens to the format expected by the component
     Object.entries(SUPPORTED_TOKENS).forEach(([symbol, token]) => {
       if (token && token.addresses[chainId]) {
         tokenConfig[symbol as TokenSymbol] = {
@@ -85,7 +112,6 @@ export default function CreateDebtModal({ isOpen, onClose }: CreateDebtModalProp
   };
 
   const tokens = getTokenConfig(ChainId.SEPOLIA);
-  const aaveRouterAddress = getAaveRouterAddress(ChainId.SEPOLIA);
 
   // Helper function to get token color
   const getTokenColor = (symbol: string) => {
@@ -106,26 +132,19 @@ export default function CreateDebtModal({ isOpen, onClose }: CreateDebtModalProp
     return colorMap[symbol] || 'bg-gray-600';
   };
 
-  const reset = () => {
-    setStep('select-supply');
-    setTxHash('');
-    // Reset collateral assets
-    setCollateralAssets(prev => prev.map(asset => ({ ...asset, selected: false, amount: '' })));
-    // Reset borrow assets
-    setBorrowAssets(prev => prev.map(asset => ({ ...asset, selected: false, amount: '' })));
-  };
-
-  const handleClose = () => {
-    reset();
-    onClose();
-  };
-
   const handleNext = () => {
+    saveToCache({
+      step: step === 'select-supply' ? 'select-borrow' : 'review',
+      collateralAssets,
+      borrowAssets,
+      approvedTokens: Array.from(approvedTokens),
+    });
     if (step === 'select-supply') setStep('select-borrow');
     else if (step === 'select-borrow') setStep('review');
   };
 
   const handleApprove = async () => {
+    debugger;
     if (!address) return;
 
     const selectedCollaterals = collateralAssets.filter(
@@ -135,18 +154,36 @@ export default function CreateDebtModal({ isOpen, onClose }: CreateDebtModalProp
 
     setIsApproving(true);
     try {
-      // Approve all selected collateral assets
-      for (const asset of selectedCollaterals) {
+      const tokensToApprove = selectedCollaterals.map(asset => {
         const token = tokens[asset.symbol];
-        const amount = parseUnits(asset.amount, token.decimals);
+        return {
+          symbol: asset.symbol,
+          amount: parseUnits(asset.amount, token.decimals),
+        };
+      });
 
-        await approveToken({
-          address: token.address,
-          abi: ERC20_ABI,
-          functionName: 'approve',
-          args: [aaveRouterAddress, amount],
-        });
-      }
+      const { allApproved, approvalResults } = await multiTokenOps.approveMultipleTokens(tokensToApprove);
+
+      approvalResults.forEach(result => {
+        if (result.success) {
+          setApprovedTokens(prev => new Set(prev).add(result.symbol));
+        }
+      });
+
+      // Check for tokens that already had sufficient allowance
+      const allowanceCheck = await multiTokenOps.checkMultipleAllowances(tokensToApprove);
+      allowanceCheck.forEach(check => {
+        if (!check.needsApproval) {
+          setApprovedTokens(prev => new Set(prev).add(check.symbol));
+        }
+      });
+
+      saveToCache({
+        step,
+        collateralAssets,
+        borrowAssets,
+        approvedTokens: Array.from(approvedTokens),
+      });
     } catch (error) {
       console.error('Approval failed:', error);
     } finally {
@@ -157,7 +194,15 @@ export default function CreateDebtModal({ isOpen, onClose }: CreateDebtModalProp
   const handleCreatePosition = async () => {
     if (!address || !predictedAddress) return;
 
+    saveToCache({
+      step: 'pending',
+      collateralAssets,
+      borrowAssets,
+      approvedTokens: Array.from(approvedTokens),
+    });
+
     setStep('pending');
+    setTransactionError(null);
 
     try {
       const params: CreatePositionParams = {
@@ -185,9 +230,20 @@ export default function CreateDebtModal({ isOpen, onClose }: CreateDebtModalProp
       };
 
       await createPosition(params);
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      clearCache();
       setStep('success');
     } catch (error) {
       console.error('Position creation failed:', error);
+
+      const errorMessage = error instanceof Error ? error.message : 'Transaction failed';
+      const isUserRejection =
+        errorMessage.toLowerCase().includes('reject') ||
+        errorMessage.toLowerCase().includes('denied') ||
+        errorMessage.toLowerCase().includes('cancelled');
+
+      setTransactionError(isUserRejection ? 'Transaction was rejected' : errorMessage);
       setStep('review');
     }
   };
@@ -203,17 +259,28 @@ export default function CreateDebtModal({ isOpen, onClose }: CreateDebtModalProp
           {/* Header */}
           <div className='flex items-center justify-between p-6 border-b'>
             <h2 className='text-xl font-semibold text-gray-900'>Create Debt Position</h2>
-            <button onClick={handleClose} className='text-gray-400 hover:text-gray-600'>
-              <svg
-                className='w-6 h-6'
-                fill='none'
-                stroke='currentColor'
-                viewBox='0 0 24 24'
-                suppressHydrationWarning={true}
-              >
-                <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M6 18L18 6M6 6l12 12' />
-              </svg>
-            </button>
+            <div className='flex items-center space-x-2'>
+              {(step === 'select-supply' || step === 'select-borrow' || step === 'review') && (
+                <button
+                  onClick={resetModal}
+                  className='px-3 py-1 text-sm text-gray-600 hover:text-gray-800 border border-gray-300 rounded-md hover:bg-gray-50'
+                  title='Reset all data'
+                >
+                  Reset
+                </button>
+              )}
+              <button onClick={handleClose} className='text-gray-400 hover:text-gray-600'>
+                <svg
+                  className='w-6 h-6'
+                  fill='none'
+                  stroke='currentColor'
+                  viewBox='0 0 24 24'
+                  suppressHydrationWarning={true}
+                >
+                  <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M6 18L18 6M6 6l12 12' />
+                </svg>
+              </button>
+            </div>
           </div>
 
           {/* Progress Steps */}
@@ -546,9 +613,6 @@ export default function CreateDebtModal({ isOpen, onClose }: CreateDebtModalProp
                         : 'Loading...'}
                     </span>
                   </div>
-                  <div className='flex justify-between'>
-                    <span className='text-gray-600'>Mode:</span>
-                  </div>
                 </div>
 
                 <div className='bg-blue-50 border border-blue-200 rounded-lg p-4'>
@@ -566,19 +630,68 @@ export default function CreateDebtModal({ isOpen, onClose }: CreateDebtModalProp
                   </div>
                 </div>
 
-                {/* Token approval steps */}
+                {/* Error display */}
+                {transactionError && (
+                  <div className='bg-red-50 border border-red-200 rounded-lg p-4'>
+                    <div className='flex items-start space-x-3'>
+                      <div className='text-red-600 mt-1'>❌</div>
+                      <div className='text-sm text-red-800'>
+                        <div className='font-medium mb-1'>Transaction Failed</div>
+                        <div>{transactionError}</div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Token approval and creation steps */}
                 <div className='space-y-3'>
-                  <button
-                    onClick={handleApprove}
-                    disabled={isApproving}
-                    className='w-full py-3 bg-gray-600 text-white rounded-lg font-medium hover:bg-gray-700 disabled:opacity-50'
-                  >
-                    {isApproving ? 'Approving...' : '1. Approve Selected Assets'}
-                  </button>
+                  {(() => {
+                    const selectedCollaterals = collateralAssets.filter(
+                      asset => asset.selected && asset.amount && parseFloat(asset.amount) > 0,
+                    );
+                    const allApproved = selectedCollaterals.every(asset => approvedTokens.has(asset.symbol));
+
+                    return (
+                      <button
+                        onClick={handleApprove}
+                        disabled={isApproving || allApproved}
+                        className={`w-full py-3 rounded-lg font-medium transition-colors ${
+                          allApproved
+                            ? 'bg-green-600 text-white cursor-default'
+                            : 'bg-gray-600 text-white hover:bg-gray-700 disabled:opacity-50'
+                        }`}
+                      >
+                        {allApproved ? (
+                          <div className='flex items-center justify-center space-x-2'>
+                            <svg className='w-5 h-5' fill='currentColor' viewBox='0 0 20 20'>
+                              <path
+                                fillRule='evenodd'
+                                d='M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z'
+                                clipRule='evenodd'
+                              />
+                            </svg>
+                            <span>✅ All Assets Approved</span>
+                          </div>
+                        ) : isApproving ? (
+                          'Approving...'
+                        ) : (
+                          '1. Approve Selected Assets'
+                        )}
+                      </button>
+                    );
+                  })()}
 
                   <button
                     onClick={handleCreatePosition}
-                    disabled={isCreating}
+                    disabled={
+                      isCreating ||
+                      !(() => {
+                        const selectedCollaterals = collateralAssets.filter(
+                          asset => asset.selected && asset.amount && parseFloat(asset.amount) > 0,
+                        );
+                        return selectedCollaterals.every(asset => approvedTokens.has(asset.symbol));
+                      })()
+                    }
                     className='w-full py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50'
                   >
                     {isCreating ? 'Creating Position...' : '2. Create Position'}
@@ -591,6 +704,47 @@ export default function CreateDebtModal({ isOpen, onClose }: CreateDebtModalProp
                 >
                   Back to Edit
                 </button>
+              </div>
+            )}
+
+            {/* Step 4: Pending Transaction */}
+            {step === 'pending' && (
+              <div className='text-center space-y-6'>
+                <div className='w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto'>
+                  <div className='animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600'></div>
+                </div>
+
+                <div>
+                  <h3 className='text-lg font-semibold text-gray-900 mb-2'>Creating Position...</h3>
+                  <p className='text-gray-600 mb-4'>Please wait while your transaction is being processed.</p>
+                  <div className='text-sm text-gray-500'>This may take a few moments to complete.</div>
+                </div>
+
+                <div className='bg-yellow-50 border border-yellow-200 rounded-lg p-4'>
+                  <div className='flex items-start space-x-3'>
+                    <div className='text-yellow-600 mt-1'>⚠️</div>
+                    <div className='text-sm text-yellow-800'>
+                      <div className='font-medium mb-1'>Transaction in Progress</div>
+                      <div>Do not close this window until the transaction is confirmed.</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Emergency reset button for stuck states */}
+                <div className='pt-4 border-t border-gray-200'>
+                  <p className='text-xs text-gray-500 mb-3'>
+                    Transaction taking too long or stuck? You can reset and try again.
+                  </p>
+                  <button
+                    onClick={() => {
+                      setStep('review');
+                      setTransactionError('Transaction was cancelled. Please try again.');
+                    }}
+                    className='px-4 py-2 text-sm text-gray-600 hover:text-gray-800 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors'
+                  >
+                    Cancel & Go Back to Review
+                  </button>
+                </div>
               </div>
             )}
 
@@ -614,15 +768,8 @@ export default function CreateDebtModal({ isOpen, onClose }: CreateDebtModalProp
                   <p className='text-gray-600'>Your debt position has been successfully created.</p>
                 </div>
 
-                {txHash && (
-                  <div className='bg-gray-50 rounded-lg p-4'>
-                    <div className='text-sm text-gray-600 mb-1'>Transaction Hash:</div>
-                    <div className='font-mono text-sm break-all'>{txHash}</div>
-                  </div>
-                )}
-
                 <button
-                  onClick={handleClose}
+                  onClick={handleSuccessClose}
                   className='w-full py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700'
                 >
                   Close

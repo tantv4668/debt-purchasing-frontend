@@ -2,6 +2,12 @@
 const nextConfig = {
   reactStrictMode: true,
   
+  // Development optimizations
+  ...(process.env.NODE_ENV === 'development' && {
+    // Enable source maps for debugging
+    productionBrowserSourceMaps: false,
+  }),
+  
   // Optimize compilation performance
   experimental: {
     // Reduce memory usage
@@ -10,8 +16,12 @@ const nextConfig = {
     optimizePackageImports: ['wagmi', 'viem'],
   },
 
-  // Webpack optimizations
+  // Webpack optimizations (only when not using Turbopack)
   webpack: (config, { dev, isServer }) => {
+    // Skip webpack customizations when using Turbopack
+    if (process.env.TURBOPACK) {
+      return config;
+    }
     // Fix node.js module resolution
     config.resolve.fallback = { 
       fs: false, 

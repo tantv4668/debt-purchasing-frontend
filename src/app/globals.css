@@ -2,6 +2,19 @@
 @tailwind components;
 @tailwind utilities;
 
+/* AppKit theme adaptation for balance text */
+.appkit-theme-adapter appkit-button {
+  --w3m-color-fg-1: theme(colors.gray.900);
+  --w3m-color-fg-2: theme(colors.gray.700);
+}
+
+@media (prefers-color-scheme: dark) {
+  .appkit-theme-adapter appkit-button {
+    --w3m-color-fg-1: theme(colors.white);
+    --w3m-color-fg-2: theme(colors.gray.200);
+  }
+}
+
 :root {
   --foreground-rgb: 0, 0, 0;
   --background-start-rgb: 214, 219, 220;
