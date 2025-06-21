@@ -178,11 +178,9 @@ const { data, error, isLoading } = useContractRead({
   // ... config
   onSuccess: data => {
     console.log('Contract read success:', data);
-    debugger; // Breakpoint triggers here
   },
   onError: error => {
     console.error('Contract read error:', error);
-    debugger; // Breakpoint for errors
   },
 });
 
@@ -190,7 +188,6 @@ const { data, error, isLoading } = useContractRead({
 const { address, isConnected } = useAccount({
   onConnect: ({ address, connector }) => {
     console.log('Wallet connected:', address, connector?.name);
-    debugger; // Debug connection flow
   },
 });
 ```

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { parseUnits } from 'viem';
-import { useAccount } from 'wagmi';
+import { useAccount, useWaitForTransactionReceipt } from 'wagmi';
 import { ChainId } from '../lib/contracts';
 import { SUPPORTED_TOKENS } from '../lib/contracts/tokens';
 import { useMultiTokenOperations } from '../lib/hooks/useContracts';
@@ -30,6 +30,41 @@ export default function CreateDebtModal({ isOpen, onClose }: CreateDebtModalProp
   const [approvedTokens, setApprovedTokens] = useState<Set<string>>(new Set());
   const [hasInitialized, setHasInitialized] = useState(false);
   const [transactionError, setTransactionError] = useState<string | null>(null);
+  const [transactionHash, setTransactionHash] = useState<`0x${string}` | undefined>(undefined);
+
+  // Wait for transaction receipt
+  const {
+    data: receipt,
+    isLoading: isWaitingForReceipt,
+    error: receiptError,
+  } = useWaitForTransactionReceipt({
+    hash: transactionHash,
+  });
+
+  // Handle transaction completion
+  useEffect(() => {
+    if (receipt && step === 'pending') {
+      if (receipt.status === 'success') {
+        clearCache();
+        setStep('success');
+        setTransactionHash(undefined);
+      } else {
+        setTransactionError('Transaction failed on blockchain');
+        setStep('review');
+        setTransactionHash(undefined);
+      }
+    }
+  }, [receipt, step, clearCache]);
+
+  // Handle transaction receipt error
+  useEffect(() => {
+    if (receiptError && step === 'pending') {
+      const errorMessage = receiptError instanceof Error ? receiptError.message : 'Transaction failed';
+      setTransactionError(errorMessage);
+      setStep('review');
+      setTransactionHash(undefined);
+    }
+  }, [receiptError, step]);
 
   // Initialize default state
   const getDefaultCollateralAssets = () =>
@@ -144,7 +179,6 @@ export default function CreateDebtModal({ isOpen, onClose }: CreateDebtModalProp
   };
 
   const handleApprove = async () => {
-    debugger;
     if (!address) return;
 
     const selectedCollaterals = collateralAssets.filter(
@@ -203,6 +237,7 @@ export default function CreateDebtModal({ isOpen, onClose }: CreateDebtModalProp
 
     setStep('pending');
     setTransactionError(null);
+    setTransactionHash(undefined);
 
     try {
       const params: CreatePositionParams = {
@@ -229,11 +264,11 @@ export default function CreateDebtModal({ isOpen, onClose }: CreateDebtModalProp
           }),
       };
 
-      await createPosition(params);
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Get transaction hash and store it to wait for confirmation
+      const txHash = await createPosition(params);
+      setTransactionHash(txHash);
 
-      clearCache();
-      setStep('success');
+      // Don't set success here - wait for transaction receipt
     } catch (error) {
       console.error('Position creation failed:', error);
 
@@ -715,8 +750,22 @@ export default function CreateDebtModal({ isOpen, onClose }: CreateDebtModalProp
                 </div>
 
                 <div>
-                  <h3 className='text-lg font-semibold text-gray-900 mb-2'>Creating Position...</h3>
-                  <p className='text-gray-600 mb-4'>Please wait while your transaction is being processed.</p>
+                  <h3 className='text-lg font-semibold text-gray-900 mb-2'>
+                    {transactionHash ? 'Confirming Transaction...' : 'Creating Position...'}
+                  </h3>
+                  <p className='text-gray-600 mb-4'>
+                    {transactionHash
+                      ? 'Transaction submitted. Waiting for blockchain confirmation...'
+                      : 'Please confirm the transaction in your wallet.'}
+                  </p>
+                  {transactionHash && (
+                    <div className='text-sm text-gray-500 mb-4'>
+                      Transaction Hash:{' '}
+                      <span className='font-mono'>
+                        {transactionHash.slice(0, 12)}...{transactionHash.slice(-8)}
+                      </span>
+                    </div>
+                  )}
                   <div className='text-sm text-gray-500'>This may take a few moments to complete.</div>
                 </div>
 
@@ -738,6 +787,7 @@ export default function CreateDebtModal({ isOpen, onClose }: CreateDebtModalProp
                   <button
                     onClick={() => {
                       setStep('review');
+                      setTransactionHash(undefined);
                       setTransactionError('Transaction was cancelled. Please try again.');
                     }}
                     className='px-4 py-2 text-sm text-gray-600 hover:text-gray-800 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors'
