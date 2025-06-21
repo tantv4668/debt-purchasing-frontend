@@ -23,7 +23,7 @@ export const CONTRACT_ADDRESSES: Record<ChainId, ContractAddresses> = {
   [ChainId.SEPOLIA]: {
     aaveRouter: '0xd11775250D1B521fB7F245D43efdDcdE955F3AF8',
     poolAddressesProvider: '0x2dd7e9422f8aeda720b4d5836f9101794252b798',
-    poolProxy: '0x455b7372e78978ea903437ca0f6d832438f633c',
+    poolProxy: '0x6Ae43d3271ff6888e7Fc43Fd7321a503ff738951',
     poolConfiguratorProxy: '0xa254b63ab427b00a57d6a31a9cb71f20ffa351da',
     aclManager: '0x184082cc3af56e9aaf72d15f72e2ba5ecdec4804',
     aaveOracle: '0xad0e73a1df939550038cefeccd728b18bc5683b7',

@@ -33,8 +33,11 @@ export function getHealthFactorInfo(healthFactor: bigint, liquidationThreshold: 
 }
 
 // Address utilities
-export function truncateAddress(address: Address, chars = 4): string {
-  return `${address.slice(0, 2 + chars)}...${address.slice(-chars)}`;
+export function truncateAddress(address: string, prefixLength = 6, suffixLength = 4): string {
+  if (address.length <= prefixLength + suffixLength) {
+    return address;
+  }
+  return `${address.slice(0, prefixLength)}...${address.slice(-suffixLength)}`;
 }
 
 export function isValidAddress(address: string): boolean {
@@ -87,25 +90,26 @@ export function formatBasisPoints(basisPoints: bigint): number {
 }
 
 // Time utilities
-export function formatTimeRemaining(endTime: Date): string {
+export function formatTimeRemaining(date: Date | string): string {
+  const targetDate = typeof date === 'string' ? new Date(date) : date;
   const now = new Date();
-  const diff = endTime.getTime() - now.getTime();
+  const diffMs = targetDate.getTime() - now.getTime();
 
-  if (diff <= 0) {
+  if (diffMs <= 0) {
     return 'Expired';
   }
 
-  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-  const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-  const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  const diffHours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+  const diffMinutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
 
-  if (days > 0) {
-    return `${days}d ${hours}h`;
+  if (diffDays > 0) {
+    return `${diffDays}d ${diffHours}h`;
+  } else if (diffHours > 0) {
+    return `${diffHours}h ${diffMinutes}m`;
+  } else {
+    return `${diffMinutes}m`;
   }
-  if (hours > 0) {
-    return `${hours}h ${minutes}m`;
-  }
-  return `${minutes}m`;
 }
 
 export function isOrderExpired(endTime: Date): boolean {

@@ -2,8 +2,24 @@ import { useMemo } from 'react';
 import { Address } from 'viem';
 import { useAccount, useWriteContract } from 'wagmi';
 import { ChainId, getAaveRouterAddress } from '../contracts';
-import { ERC20_ABI } from '../contracts/abis';
+import { AAVE_POOL_ABI, AAVE_ROUTER_ABI, ERC20_ABI } from '../contracts/abis';
+import { getContractAddress } from '../contracts/addresses';
+import { AAVE_POOL_EXTENSIONS, CONTRACT_DEFAULTS, POSITION_CONFIG } from '../contracts/config';
 import { SUPPORTED_TOKENS } from '../contracts/tokens';
+import {
+  calculateSalt,
+  getMaxApprovalAmount,
+  getTokenAddress,
+  getWagmiActions,
+  isPositionActive,
+  needsApproval,
+  safeContractCall,
+  validateWalletConnection,
+} from '../utils/contract-helpers';
+import { logger } from '../utils/logger';
+
+// Complete Aave Pool ABI
+const AAVE_POOL_COMPLETE_ABI = [...AAVE_POOL_ABI, ...AAVE_POOL_EXTENSIONS] as const;
 
 // Contract interaction types
 export interface ContractConfig {
@@ -11,15 +27,23 @@ export interface ContractConfig {
   abi: any;
 }
 
-// Base contract hook - for advanced users who need direct contract access
+export interface DebtPositionData {
+  debtAddress: Address;
+  totalCollateralBase: bigint;
+  totalDebtBase: bigint;
+  healthFactor: bigint;
+  ltv: bigint;
+  liquidationThreshold: bigint;
+  isActive: boolean;
+}
+
+// Base contract hook
 export function useContract<T = any>(config: ContractConfig) {
   const { writeContract } = useWriteContract();
 
   return useMemo(() => {
     const read = async (functionName: string, args: any[] = []) => {
-      const { readContract } = await import('wagmi/actions');
-      const { config: wagmiConfig } = await import('../wagmi');
-
+      const { readContract, wagmiConfig } = await getWagmiActions();
       return readContract(wagmiConfig, {
         address: config.address,
         abi: config.abi,
@@ -41,42 +65,38 @@ export function useContract<T = any>(config: ContractConfig) {
   }, [config.address, config.abi, writeContract]);
 }
 
-// Token Operations Hook - Simplified token operations for approvals
-export function useTokenOperations(chainId: ChainId = ChainId.SEPOLIA) {
+// Token Operations Hook
+export function useTokenOperations(chainId: ChainId = CONTRACT_DEFAULTS.CHAIN_ID) {
   const { address } = useAccount();
   const { writeContractAsync } = useWriteContract();
   const routerAddress = getAaveRouterAddress(chainId);
 
   return useMemo(() => {
-    const getTokenAddress = (tokenSymbol: string) => {
-      const token = SUPPORTED_TOKENS[tokenSymbol];
-      if (!token || !token.addresses[chainId]) {
-        throw new Error(`Token ${tokenSymbol} not supported on chain ${chainId}`);
-      }
-      return token.addresses[chainId] as Address;
-    };
-
-    const checkAllowance = async (tokenSymbol: string, spenderAddress?: Address) => {
-      if (!address) throw new Error('Wallet not connected');
+    const checkAllowance = async (tokenSymbol: string, spenderAddress?: Address): Promise<bigint> => {
+      const userAddress = validateWalletConnection(address);
       const spender = spenderAddress || routerAddress;
-      const tokenAddress = getTokenAddress(tokenSymbol);
+      const tokenAddress = getTokenAddress(tokenSymbol, chainId, SUPPORTED_TOKENS);
 
-      const { readContract } = await import('wagmi/actions');
-      const { config: wagmiConfig } = await import('../wagmi');
-
-      const allowance = (await readContract(wagmiConfig, {
-        address: tokenAddress,
-        abi: ERC20_ABI,
-        functionName: 'allowance',
-        args: [address, spender],
-      })) as bigint;
-      return allowance;
+      return safeContractCall(
+        async () => {
+          const { readContract, wagmiConfig } = await getWagmiActions();
+          return readContract(wagmiConfig, {
+            address: tokenAddress,
+            abi: ERC20_ABI,
+            functionName: 'allowance',
+            args: [userAddress, spender],
+          }) as Promise<bigint>;
+        },
+        'ERC20',
+        'allowance',
+        [userAddress, spender],
+      );
     };
 
     const approveToken = async (tokenSymbol: string, amount: bigint, spenderAddress?: Address) => {
-      if (!address) throw new Error('Wallet not connected');
+      validateWalletConnection(address);
       const spender = spenderAddress || routerAddress;
-      const tokenAddress = getTokenAddress(tokenSymbol);
+      const tokenAddress = getTokenAddress(tokenSymbol, chainId, SUPPORTED_TOKENS);
 
       return writeContractAsync({
         address: tokenAddress,
@@ -87,20 +107,15 @@ export function useTokenOperations(chainId: ChainId = ChainId.SEPOLIA) {
     };
 
     const approveMaxToken = async (tokenSymbol: string, spenderAddress?: Address) => {
-      const maxAmount = BigInt('0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff');
-      return approveToken(tokenSymbol, maxAmount, spenderAddress);
+      return approveToken(tokenSymbol, getMaxApprovalAmount(), spenderAddress);
     };
 
-    return {
-      checkAllowance,
-      approveToken,
-      approveMaxToken,
-    };
+    return { checkAllowance, approveToken, approveMaxToken };
   }, [address, chainId, routerAddress, writeContractAsync]);
 }
 
-// Multi-token operations hook - For batch operations
-export function useMultiTokenOperations(chainId: ChainId = ChainId.SEPOLIA) {
+// Multi-token operations hook
+export function useMultiTokenOperations(chainId: ChainId = CONTRACT_DEFAULTS.CHAIN_ID) {
   const tokenOps = useTokenOperations(chainId);
 
   return useMemo(() => {
@@ -115,11 +130,10 @@ export function useMultiTokenOperations(chainId: ChainId = ChainId.SEPOLIA) {
             symbol,
             amount,
             allowance,
-            needsApproval: allowance < amount,
+            needsApproval: needsApproval(allowance, amount),
           };
         }),
       );
-
       return results;
     };
 
@@ -144,19 +158,212 @@ export function useMultiTokenOperations(chainId: ChainId = ChainId.SEPOLIA) {
         }
       }
 
-      const allApproved = approvalResults.every(r => r.success);
-      return { allApproved, approvalResults };
+      return {
+        allApproved: approvalResults.every(r => r.success),
+        approvalResults,
+      };
+    };
+
+    return { checkMultipleAllowances, approveMultipleTokens };
+  }, [tokenOps]);
+}
+
+// Debt Position Operations Hook
+export function useDebtPositionOperations(chainId: ChainId = CONTRACT_DEFAULTS.CHAIN_ID) {
+  const { address } = useAccount();
+  const routerAddress = getAaveRouterAddress(chainId);
+
+  return useMemo(() => {
+    const getUserNonce = async (): Promise<bigint> => {
+      const userAddress = validateWalletConnection(address);
+
+      return safeContractCall(
+        async () => {
+          const { readContract, wagmiConfig } = await getWagmiActions();
+          return readContract(wagmiConfig, {
+            address: routerAddress,
+            abi: AAVE_ROUTER_ABI,
+            functionName: 'userNonces',
+            args: [userAddress],
+          }) as Promise<bigint>;
+        },
+        'AaveRouter',
+        'userNonces',
+        [userAddress],
+      );
+    };
+
+    const checkDebtOwnership = async (debtAddress: Address): Promise<boolean> => {
+      const userAddress = validateWalletConnection(address);
+
+      return safeContractCall(
+        async () => {
+          const { readContract, wagmiConfig } = await getWagmiActions();
+          const owner = (await readContract(wagmiConfig, {
+            address: routerAddress,
+            abi: AAVE_ROUTER_ABI,
+            functionName: 'debtOwners',
+            args: [debtAddress],
+          })) as Address;
+
+          return owner.toLowerCase() === userAddress.toLowerCase();
+        },
+        'AaveRouter',
+        'debtOwners',
+        [debtAddress],
+      );
+    };
+
+    const getDebtPositionData = async (debtAddress: Address): Promise<DebtPositionData | null> => {
+      return safeContractCall(
+        async () => {
+          const { readContract, wagmiConfig } = await getWagmiActions();
+          const poolAddress = getContractAddress(chainId, 'poolProxy') as Address;
+
+          const accountData = (await readContract(wagmiConfig, {
+            address: poolAddress,
+            abi: AAVE_POOL_COMPLETE_ABI,
+            functionName: 'getUserAccountData',
+            args: [debtAddress],
+          })) as [bigint, bigint, bigint, bigint, bigint, bigint];
+
+          const [
+            totalCollateralBase,
+            totalDebtBase,
+            availableBorrowsBase,
+            currentLiquidationThreshold,
+            ltv,
+            healthFactor,
+          ] = accountData;
+
+          return {
+            debtAddress,
+            totalCollateralBase,
+            totalDebtBase,
+            healthFactor,
+            ltv,
+            liquidationThreshold: currentLiquidationThreshold,
+            isActive: isPositionActive(totalCollateralBase, totalDebtBase),
+          };
+        },
+        'AavePool',
+        'getUserAccountData',
+        [debtAddress],
+      );
+    };
+
+    // Main function to get all user debt positions
+    const getUserDebtPositions = async (): Promise<DebtPositionData[]> => {
+      if (!address) return [];
+
+      try {
+        logger.info('Fetching user debt positions for:', address);
+
+        const userNonce = await getUserNonce();
+        logger.info(`User nonce: ${userNonce.toString()}`);
+
+        if (Number(userNonce) === 0) {
+          logger.info('User has no debt positions (nonce is 0)');
+          return [];
+        }
+
+        // Try to get implementation address for CREATE2 calculation
+        let positions: DebtPositionData[] = [];
+
+        try {
+          positions = await getPositionsByNonceIteration(Number(userNonce));
+        } catch (error) {
+          logger.warn('Nonce iteration failed, trying fallback approach:', error);
+          positions = await getFallbackPositions();
+        }
+
+        logger.info(`Found ${positions.length} total positions`);
+        return positions;
+      } catch (error) {
+        logger.error('Error getting user debt positions:', error);
+        return [];
+      }
+    };
+
+    // Helper: Get positions by iterating through nonces
+    const getPositionsByNonceIteration = async (userNonce: number): Promise<DebtPositionData[]> => {
+      const positions: DebtPositionData[] = [];
+      const maxIterations = Math.min(userNonce, POSITION_CONFIG.MAX_NONCE_ITERATIONS);
+
+      logger.info(`Checking positions for nonces 0 to ${maxIterations - 1}`);
+
+      for (let nonce = 0; nonce < maxIterations; nonce++) {
+        try {
+          const salt = await calculateSalt(address as Address, nonce);
+          logger.debug(`Checking nonce ${nonce} with salt: ${salt}`);
+
+          // For now, we'll use the fallback approach since CREATE2 calculation is complex
+          // This is where you'd implement proper CREATE2 address calculation
+          // const calculatedAddress = calculateCREATE2Address(routerAddress, salt, implementationHash);
+        } catch (error) {
+          logger.error(`Error checking nonce ${nonce}:`, error);
+          continue;
+        }
+      }
+
+      return positions;
+    };
+
+    // Helper: Fallback approach for finding positions
+    const getFallbackPositions = async (): Promise<DebtPositionData[]> => {
+      logger.info('Using fallback approach to find positions');
+
+      return safeContractCall(
+        async () => {
+          const { readContract, wagmiConfig } = await getWagmiActions();
+          const positions: DebtPositionData[] = [];
+
+          // Get the current predicted address (for next position)
+          const nextPredictedAddress = (await readContract(wagmiConfig, {
+            address: routerAddress,
+            abi: AAVE_ROUTER_ABI,
+            functionName: 'predictDebtAddress',
+            args: [address],
+          })) as Address;
+
+          logger.info('Next predicted address:', nextPredictedAddress);
+
+          // Test the predicted address
+          const positionData = await getDebtPositionData(nextPredictedAddress);
+
+          if (positionData) {
+            const isOwned = await checkDebtOwnership(nextPredictedAddress);
+            logger.info('Is owned by user:', isOwned);
+
+            if (isOwned && positionData.isActive) {
+              positions.push(positionData);
+              logger.info('✅ Added position:', nextPredictedAddress);
+            } else {
+              logger.info('❌ Position not active or not owned');
+            }
+          } else {
+            logger.info('❌ No position data found');
+          }
+
+          return positions;
+        },
+        'AaveRouter',
+        'fallbackPositionSearch',
+      );
     };
 
     return {
-      checkMultipleAllowances,
-      approveMultipleTokens,
+      getUserNonce,
+      checkDebtOwnership,
+      getDebtPositionData,
+      getUserDebtPositions,
     };
-  }, [tokenOps]);
+  }, [address, chainId, routerAddress]);
 }
 
 export default {
   useContract,
   useTokenOperations,
   useMultiTokenOperations,
+  useDebtPositionOperations,
 };

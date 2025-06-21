@@ -672,7 +672,28 @@ export default function CreateDebtModal({ isOpen, onClose }: CreateDebtModalProp
                       <div className='text-red-600 mt-1'>❌</div>
                       <div className='text-sm text-red-800'>
                         <div className='font-medium mb-1'>Transaction Failed</div>
-                        <div>{transactionError}</div>
+                        <div>
+                          {(() => {
+                            // Extract user-friendly error message
+                            const error = transactionError.toLowerCase();
+                            if (error.includes('user rejected') || error.includes('user denied')) {
+                              return 'Transaction cancelled by user';
+                            }
+                            if (error.includes('insufficient funds') || error.includes('insufficient balance')) {
+                              return 'Insufficient funds for transaction';
+                            }
+                            if (error.includes('execution reverted')) {
+                              return 'Transaction reverted - check requirements';
+                            }
+                            if (error.includes('network') || error.includes('connection')) {
+                              return 'Network connection error';
+                            }
+                            // Show first 50 characters of error for other cases
+                            return transactionError.length > 50
+                              ? transactionError.substring(0, 50) + '...'
+                              : transactionError;
+                          })()}
+                        </div>
                       </div>
                     </div>
                   </div>

@@ -11,7 +11,6 @@ import {
   truncateAddress,
 } from '@/lib/utils';
 // AppKit button will be used instead
-import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { Address } from 'viem';
 import { useAccount } from 'wagmi';
@@ -220,10 +219,10 @@ export default function MarketPage() {
 
   if (!isConnected) {
     return (
-      <div className='min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 flex items-center justify-center'>
-        <div className='bg-white p-8 rounded-2xl shadow-xl text-center max-w-md mx-auto'>
-          <h1 className='text-2xl font-bold text-gray-900 mb-4'>Connect Your Wallet</h1>
-          <p className='text-gray-600 mb-6'>Please connect your wallet to browse the market.</p>
+      <div className='min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 dark:from-gray-900 dark:to-blue-900 flex items-center justify-center'>
+        <div className='bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-xl text-center max-w-md mx-auto'>
+          <h1 className='text-2xl font-bold text-gray-900 dark:text-white mb-4'>Connect Your Wallet</h1>
+          <p className='text-gray-600 dark:text-gray-300 mb-6'>Please connect your wallet to browse the market.</p>
           <div className='flex justify-center mt-4'>
             <appkit-button />
           </div>
@@ -233,52 +232,26 @@ export default function MarketPage() {
   }
 
   return (
-    <div className='min-h-screen bg-gray-50'>
-      {/* Header */}
-      <header className='bg-white shadow-sm border-b'>
-        <div className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4'>
-          <div className='flex justify-between items-center'>
-            <div className='flex items-center gap-8'>
-              <Link href='/' className='flex items-center gap-3'>
-                <span className='text-xl font-bold text-gray-900'>Debt Protocol</span>
-              </Link>
-              <nav className='hidden md:flex space-x-8'>
-                <Link href='/dashboard' className='text-gray-500 hover:text-gray-900'>
-                  Dashboard
-                </Link>
-                <Link href='/positions' className='text-gray-500 hover:text-gray-900'>
-                  Positions
-                </Link>
-                <Link href='/market' className='text-blue-600 font-medium'>
-                  Market
-                </Link>
-                <Link href='/orders' className='text-gray-500 hover:text-gray-900'>
-                  Orders
-                </Link>
-              </nav>
-            </div>
-            <appkit-button />
-          </div>
-        </div>
-      </header>
-
+    <div className='min-h-screen bg-gray-50 dark:bg-gray-900'>
       {/* Main Content */}
       <main className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8'>
         {/* Header Section */}
         <div className='mb-8'>
-          <h1 className='text-3xl font-bold text-gray-900'>Debt Position Market</h1>
-          <p className='text-gray-600 mt-2'>Browse and purchase debt positions to help others avoid liquidation</p>
+          <h1 className='text-3xl font-bold text-gray-900 dark:text-white'>Debt Position Market</h1>
+          <p className='text-gray-600 dark:text-gray-300 mt-2'>
+            Browse and purchase debt positions to help others avoid liquidation
+          </p>
         </div>
 
         {/* Filters */}
-        <div className='bg-white p-6 rounded-xl shadow-sm border mb-8'>
+        <div className='bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 mb-8'>
           <div className='grid grid-cols-1 md:grid-cols-4 gap-4'>
             <div>
-              <label className='block text-sm font-medium text-gray-700 mb-2'>Order Type</label>
+              <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>Order Type</label>
               <select
                 value={orderTypeFilter}
                 onChange={e => setOrderTypeFilter(e.target.value as OrderType | 'all')}
-                className='w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500'
+                className='w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-gray-900 dark:text-white bg-white dark:bg-gray-700'
               >
                 <option value='all'>All Types</option>
                 <option value='full'>Full Sale</option>
@@ -287,11 +260,11 @@ export default function MarketPage() {
             </div>
 
             <div>
-              <label className='block text-sm font-medium text-gray-700 mb-2'>Health Factor</label>
+              <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>Health Factor</label>
               <select
                 value={healthFactorFilter}
                 onChange={e => setHealthFactorFilter(e.target.value as HealthFactorStatus | 'all')}
-                className='w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500'
+                className='w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-gray-900 dark:text-white bg-white dark:bg-gray-700'
               >
                 <option value='all'>All Levels</option>
                 <option value='danger'>Danger (&lt; 1.1)</option>
@@ -301,11 +274,11 @@ export default function MarketPage() {
             </div>
 
             <div>
-              <label className='block text-sm font-medium text-gray-700 mb-2'>Sort By</label>
+              <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>Sort By</label>
               <select
                 value={sortBy}
                 onChange={e => setSortBy(e.target.value as typeof sortBy)}
-                className='w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500'
+                className='w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-gray-900 dark:text-white bg-white dark:bg-gray-700'
               >
                 <option value='healthFactor'>Health Factor</option>
                 <option value='profit'>Est. Profit</option>
@@ -314,8 +287,9 @@ export default function MarketPage() {
             </div>
 
             <div className='flex items-end'>
-              <div className='text-sm text-gray-600'>
-                <span className='font-medium'>{filteredOrders.length}</span> orders available
+              <div className='text-sm text-gray-600 dark:text-gray-400'>
+                <span className='font-medium text-gray-900 dark:text-white'>{filteredOrders.length}</span> orders
+                available
               </div>
             </div>
           </div>
@@ -324,13 +298,18 @@ export default function MarketPage() {
         {/* Orders Grid */}
         <div className='grid grid-cols-1 lg:grid-cols-2 gap-6'>
           {filteredOrders.map(order => (
-            <div key={order.id} className='bg-white rounded-xl shadow-sm border p-6'>
+            <div
+              key={order.id}
+              className='bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6'
+            >
               {/* Order Header */}
               <div className='flex justify-between items-start mb-4'>
                 <div className='flex items-center gap-3'>
                   <div
                     className={`px-3 py-1 rounded-full text-xs font-medium ${
-                      order.type === 'full' ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800'
+                      order.type === 'full'
+                        ? 'bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200'
+                        : 'bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200'
                     }`}
                   >
                     {order.type === 'full' ? 'Full Sale' : 'Partial Sale'}
@@ -338,31 +317,39 @@ export default function MarketPage() {
                   {getHealthFactorBadge(order.currentHealthFactor)}
                 </div>
                 <div className='text-right'>
-                  <div className='text-sm text-gray-600'>Expires in</div>
-                  <div className='font-medium text-orange-600'>{formatTimeRemaining(order.validUntil)}</div>
+                  <div className='text-sm text-gray-600 dark:text-gray-400'>Expires in</div>
+                  <div className='font-medium text-orange-600 dark:text-orange-400'>
+                    {formatTimeRemaining(order.validUntil)}
+                  </div>
                 </div>
               </div>
 
               {/* Position Info */}
-              <div className='bg-gray-50 p-4 rounded-lg mb-4'>
+              <div className='bg-gray-50 dark:bg-gray-700 p-4 rounded-lg mb-4'>
                 <div className='grid grid-cols-2 gap-4 text-sm'>
                   <div>
-                    <span className='text-gray-600'>Collateral:</span>
-                    <span className='ml-2 font-medium'>{formatUSD(order.debtPosition.totalCollateralBase)}</span>
+                    <span className='text-gray-600 dark:text-gray-400'>Collateral:</span>
+                    <span className='ml-2 font-medium text-gray-900 dark:text-white'>
+                      {formatUSD(order.debtPosition.totalCollateralBase)}
+                    </span>
                   </div>
                   <div>
-                    <span className='text-gray-600'>Debt:</span>
-                    <span className='ml-2 font-medium'>{formatUSD(order.debtPosition.totalDebtBase)}</span>
+                    <span className='text-gray-600 dark:text-gray-400'>Debt:</span>
+                    <span className='ml-2 font-medium text-gray-900 dark:text-white'>
+                      {formatUSD(order.debtPosition.totalDebtBase)}
+                    </span>
                   </div>
                   <div>
-                    <span className='text-gray-600'>Net Equity:</span>
-                    <span className='ml-2 font-medium'>
+                    <span className='text-gray-600 dark:text-gray-400'>Net Equity:</span>
+                    <span className='ml-2 font-medium text-gray-900 dark:text-white'>
                       {formatUSD(order.debtPosition.totalCollateralBase - order.debtPosition.totalDebtBase)}
                     </span>
                   </div>
                   <div>
-                    <span className='text-gray-600'>Seller:</span>
-                    <span className='ml-2 font-mono text-xs'>{truncateAddress(order.seller)}</span>
+                    <span className='text-gray-600 dark:text-gray-400'>Seller:</span>
+                    <span className='ml-2 font-mono text-xs text-gray-900 dark:text-white'>
+                      {truncateAddress(order.seller)}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -370,19 +357,23 @@ export default function MarketPage() {
               {/* Order Details */}
               <div className='space-y-3 mb-4'>
                 <div className='flex justify-between'>
-                  <span className='text-gray-600'>Trigger Health Factor:</span>
-                  <span className='font-medium'>{order.triggerHealthFactor.toFixed(2)}</span>
+                  <span className='text-gray-600 dark:text-gray-400'>Trigger Health Factor:</span>
+                  <span className='font-medium text-gray-900 dark:text-white'>
+                    {order.triggerHealthFactor.toFixed(2)}
+                  </span>
                 </div>
 
                 {order.type === 'full' && (
                   <>
                     <div className='flex justify-between'>
-                      <span className='text-gray-600'>Seller Gets:</span>
-                      <span className='font-medium'>{formatPercentage(order.percentOfEquity || 0)}</span>
+                      <span className='text-gray-600 dark:text-gray-400'>Seller Gets:</span>
+                      <span className='font-medium text-gray-900 dark:text-white'>
+                        {formatPercentage(order.percentOfEquity || 0)}
+                      </span>
                     </div>
                     <div className='flex justify-between'>
-                      <span className='text-gray-600'>Your Potential Profit:</span>
-                      <span className='font-medium text-green-600'>
+                      <span className='text-gray-600 dark:text-gray-400'>Your Potential Profit:</span>
+                      <span className='font-medium text-green-600 dark:text-green-400'>
                         {formatUSD(order.estimatedProfit || BigInt(0))}
                       </span>
                     </div>
@@ -392,12 +383,16 @@ export default function MarketPage() {
                 {order.type === 'partial' && (
                   <>
                     <div className='flex justify-between'>
-                      <span className='text-gray-600'>Repay Amount:</span>
-                      <span className='font-medium'>{formatUSD(order.repayAmount || BigInt(0))}</span>
+                      <span className='text-gray-600 dark:text-gray-400'>Repay Amount:</span>
+                      <span className='font-medium text-gray-900 dark:text-white'>
+                        {formatUSD(order.repayAmount || BigInt(0))}
+                      </span>
                     </div>
                     <div className='flex justify-between'>
-                      <span className='text-gray-600'>Your Bonus:</span>
-                      <span className='font-medium text-green-600'>{formatPercentage(order.bonus || 0)}</span>
+                      <span className='text-gray-600 dark:text-gray-400'>Your Bonus:</span>
+                      <span className='font-medium text-green-600 dark:text-green-400'>
+                        {formatPercentage(order.bonus || 0)}
+                      </span>
                     </div>
                   </>
                 )}
@@ -407,7 +402,7 @@ export default function MarketPage() {
               <button
                 onClick={() => handleExecuteOrder(order)}
                 disabled={isExecuting && selectedOrder?.id === order.id}
-                className='w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors'
+                className='w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors'
               >
                 {isExecuting && selectedOrder?.id === order.id
                   ? 'Executing...'
@@ -420,8 +415,8 @@ export default function MarketPage() {
         {filteredOrders.length === 0 && (
           <div className='text-center py-12'>
             <div className='text-4xl mb-4'>📭</div>
-            <h3 className='text-lg font-medium text-gray-900 mb-2'>No orders found</h3>
-            <p className='text-gray-600'>Try adjusting your filters to see more results.</p>
+            <h3 className='text-lg font-medium text-gray-900 dark:text-white mb-2'>No orders found</h3>
+            <p className='text-gray-600 dark:text-gray-300'>Try adjusting your filters to see more results.</p>
           </div>
         )}
       </main>

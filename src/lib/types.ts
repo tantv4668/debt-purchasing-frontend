@@ -199,3 +199,43 @@ export const HEALTH_FACTOR_DECIMALS = 18;
 export const BASIS_POINTS_DIVISOR = 10000;
 export const SECONDS_PER_HOUR = 3600;
 export const MAX_VALIDITY_PERIOD_HOURS = 24 * 30; // 30 days
+
+export interface UserSellOrder {
+  id: string;
+  debtAddress: Address;
+  type: 'full' | 'partial';
+  status: 'active' | 'expired' | 'executed' | 'cancelled';
+  createdAt: Date;
+  validUntil: Date;
+  triggerHealthFactor: number;
+  currentHealthFactor: number;
+
+  // Full order specific fields
+  percentOfEquity?: number;
+  paymentToken?: Address;
+
+  // Partial order specific fields
+  repayToken?: Address;
+  repayAmount?: bigint;
+  bonus?: number;
+  collateralTokens?: Address[];
+  collateralPercentages?: number[];
+
+  // Order signature data
+  v?: number;
+  r?: string;
+  s?: string;
+
+  // Execution data
+  executedBy?: Address;
+  executedAt?: Date;
+  executionTxHash?: string;
+}
+
+export interface UserOrdersSummary {
+  totalOrders: number;
+  activeOrders: number;
+  expiredOrders: number;
+  executedOrders: number;
+  totalPotentialValue: number; // USD value of positions with active orders
+}

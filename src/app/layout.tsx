@@ -1,8 +1,10 @@
+import { ThemeProvider } from '@/contexts/ThemeContext';
 import { ReactPlugin } from '@stagewise-plugins/react';
 import { StagewiseToolbar } from '@stagewise/toolbar-next';
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import { headers } from 'next/headers';
+import Navigation from '../components/Navigation';
 import './globals.css';
 import { Providers } from './providers';
 
@@ -27,7 +29,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang='en' suppressHydrationWarning>
       <body className={inter.className}>
-        <Providers cookies={cookies}>{children}</Providers>
+        <ThemeProvider>
+          <Providers cookies={cookies}>
+            <Navigation />
+            {children}
+          </Providers>
+        </ThemeProvider>
         <StagewiseToolbar
           config={{
             plugins: [ReactPlugin],

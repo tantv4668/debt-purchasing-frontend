@@ -2,17 +2,46 @@
 @tailwind components;
 @tailwind utilities;
 
-/* AppKit theme adaptation for balance text */
-.appkit-theme-adapter appkit-button {
-  --w3m-color-fg-1: theme(colors.gray.900);
-  --w3m-color-fg-2: theme(colors.gray.700);
+/* AppKit Web3Modal button styling for better text visibility */
+appkit-button {
+  --w3m-color-fg-1: rgb(0, 0, 0) !important; /* Pure black for maximum contrast */
+  --w3m-color-fg-2: rgb(17, 24, 39) !important; /* gray-900 */
+  --w3m-color-fg-3: rgb(55, 65, 81) !important; /* gray-700 */
+  color: rgb(0, 0, 0) !important; /* Force black text */
 }
 
-@media (prefers-color-scheme: dark) {
-  .appkit-theme-adapter appkit-button {
-    --w3m-color-fg-1: theme(colors.white);
-    --w3m-color-fg-2: theme(colors.gray.200);
-  }
+/* Target specific AppKit internal elements for light mode */
+appkit-button *,
+appkit-button span,
+appkit-button div,
+appkit-button p,
+appkit-button [role="button"],
+appkit-button [data-testid],
+appkit-button wui-text,
+appkit-button wui-button,
+appkit-button .wui-text {
+  color: rgb(0, 0, 0) !important;
+}
+
+/* Dark mode styles for AppKit button */
+.dark appkit-button {
+  --w3m-color-fg-1: rgb(255, 255, 255) !important; /* Pure white */
+  --w3m-color-fg-2: rgb(243, 244, 246) !important; /* gray-100 */
+  --w3m-color-fg-3: rgb(209, 213, 219) !important; /* gray-300 */
+  color: rgb(255, 255, 255) !important; /* Force white text */
+}
+
+/* Target specific AppKit internal elements for dark mode */
+.dark appkit-button *,
+.dark appkit-button span,
+.dark appkit-button div,
+.dark appkit-button p,
+.dark appkit-button [role="button"],
+.dark appkit-button [data-testid],
+.dark appkit-button wui-text,
+.dark appkit-button wui-button,
+.dark appkit-button .wui-text {
+  color: rgb(255, 255, 255) !important;
 }
 
 :root {
@@ -29,14 +58,10 @@
   }
 }
 
-body {
-  color: rgb(var(--foreground-rgb));
-  background: linear-gradient(to bottom, transparent, rgb(var(--background-end-rgb))) rgb(var(--background-start-rgb));
-}
-
 /* Basic styles for the application */
 body {
   font-family: system-ui, -apple-system, sans-serif;
+  color: rgb(var(--foreground-rgb));
 }
 
 .container {
@@ -99,6 +124,24 @@ body {
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* Homepage fixed gradient - prevents global CSS from overriding */
+.homepage-fixed-gradient {
+  background: linear-gradient(to bottom right, #2563eb, #9333ea, #3730a3) !important;
+  color: white !important;
+}
+
+.homepage-fixed-gradient * {
+  --tw-text-opacity: 1 !important;
+}
+
+.homepage-fixed-gradient .text-white {
+  color: white !important;
+}
+
+.logo-gradient {
+  background: linear-gradient(to bottom right, #2563eb, #9333ea, #3730a3) !important;
 }
 
 /* Custom DeFi styles */
