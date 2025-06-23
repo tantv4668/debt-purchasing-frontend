@@ -1,28 +1,18 @@
 import { useMemo } from 'react';
 import { Address } from 'viem';
-import { useAccount, useChainId, useWriteContract } from 'wagmi';
+import { useAccount, useWriteContract } from 'wagmi';
 import { ChainId, getAaveRouterAddress } from '../contracts';
-import { AAVE_POOL_ABI, AAVE_ROUTER_ABI, ERC20_ABI } from '../contracts/abis';
+import { AAVE_POOL_ABI, ERC20_ABI } from '../contracts/abis';
 import { AAVE_POOL_EXTENSIONS, CONTRACT_DEFAULTS } from '../contracts/config';
 import { SUPPORTED_TOKENS } from '../contracts/tokens';
 import {
   getMaxApprovalAmount,
   getTokenAddress,
   getWagmiActions,
-  isPositionActive,
   needsApproval,
   safeContractCall,
   validateWalletConnection,
 } from '../utils/contract-helpers';
-import { logger } from '../utils/logger';
-import {
-  SubgraphCollateral,
-  SubgraphDebt,
-  SubgraphPosition,
-  UserPositionsResponse,
-  getSubgraphClient,
-  isSubgraphSupported,
-} from '../utils/subgraph-client';
 
 // Complete Aave Pool ABI
 const AAVE_POOL_COMPLETE_ABI = [...AAVE_POOL_ABI, ...AAVE_POOL_EXTENSIONS] as const;
@@ -174,147 +164,8 @@ export function useMultiTokenOperations(chainId: ChainId = CONTRACT_DEFAULTS.CHA
   }, [tokenOps]);
 }
 
-// Debt Position Operations Hook (Subgraph-based)
-export function useDebtPositionOperations() {
-  const { address } = useAccount();
-  const chainId = useChainId();
-
-  return useMemo(() => {
-    const getUserDebtPositions = async (): Promise<DebtPositionData[]> => {
-      if (!address) {
-        logger.info('No wallet address provided');
-        return [];
-      }
-
-      if (!chainId || !isSubgraphSupported(chainId as ChainId)) {
-        logger.warn(`Subgraph not supported for chain ID: ${chainId}`);
-        return [];
-      }
-
-      try {
-        logger.info('Fetching user debt positions from subgraph for:', address);
-
-        const subgraphClient = getSubgraphClient(chainId as ChainId);
-        const response: UserPositionsResponse = await subgraphClient.getUserPositions(address);
-
-        if (!response.user || !response.user.positions) {
-          logger.info('No positions found for user');
-          return [];
-        }
-
-        const positions: DebtPositionData[] = response.user.positions.map((position: SubgraphPosition) => {
-          // Calculate total collateral and debt values in USD
-          let totalCollateralUSD = 0;
-          let totalDebtUSD = 0;
-
-          position.collaterals.forEach((collateral: SubgraphCollateral) => {
-            const amount = parseFloat(collateral.amount);
-            const price = parseFloat(collateral.token.priceUSD);
-            totalCollateralUSD += amount * price;
-          });
-
-          position.debts.forEach((debt: SubgraphDebt) => {
-            const amount = parseFloat(debt.amount);
-            const price = parseFloat(debt.token.priceUSD);
-            totalDebtUSD += amount * price;
-          });
-
-          // Calculate health factor (simplified - in practice you'd use Aave's formula)
-          const healthFactor = totalDebtUSD > 0 ? (totalCollateralUSD * 0.8) / totalDebtUSD : 999; // Assuming 80% LTV
-
-          return {
-            debtAddress: position.id as Address,
-            totalCollateralBase: BigInt(Math.floor(totalCollateralUSD * 1e18)), // Convert to base units
-            totalDebtBase: BigInt(Math.floor(totalDebtUSD * 1e18)),
-            healthFactor: BigInt(Math.floor(healthFactor * 1e18)),
-            ltv: BigInt(Math.floor(0.8 * 1e18)), // 80% LTV
-            liquidationThreshold: BigInt(Math.floor(0.85 * 1e18)), // 85% liquidation threshold
-            isActive: isPositionActive(
-              BigInt(Math.floor(totalCollateralUSD * 1e18)),
-              BigInt(Math.floor(totalDebtUSD * 1e18)),
-            ),
-          };
-        });
-
-        logger.info(`Successfully loaded ${positions.length} positions from subgraph`);
-        return positions;
-      } catch (error) {
-        logger.error('Error fetching positions from subgraph:', error);
-        return [];
-      }
-    };
-
-    const getPositionDetails = async (positionId: string) => {
-      if (!chainId || !isSubgraphSupported(chainId as ChainId)) {
-        logger.warn(`Subgraph not supported for chain ID: ${chainId}`);
-        return null;
-      }
-
-      try {
-        const subgraphClient = getSubgraphClient(chainId as ChainId);
-        const response = await subgraphClient.getPositionDetails(positionId);
-        return response.debtPosition;
-      } catch (error) {
-        logger.error('Error fetching position details:', error);
-        return null;
-      }
-    };
-
-    // Keep some legacy functions for backward compatibility
-    const getUserNonce = async (): Promise<bigint> => {
-      const userAddress = validateWalletConnection(address);
-      const routerAddress = getAaveRouterAddress(chainId as ChainId);
-
-      return safeContractCall(
-        async () => {
-          const { readContract, wagmiConfig } = await getWagmiActions();
-          return readContract(wagmiConfig, {
-            address: routerAddress,
-            abi: AAVE_ROUTER_ABI,
-            functionName: 'userNonces',
-            args: [userAddress],
-          }) as Promise<bigint>;
-        },
-        'AaveRouter',
-        'userNonces',
-        [userAddress],
-      );
-    };
-
-    const checkDebtOwnership = async (debtAddress: Address): Promise<boolean> => {
-      const userAddress = validateWalletConnection(address);
-      const routerAddress = getAaveRouterAddress(chainId as ChainId);
-
-      return safeContractCall(
-        async () => {
-          const { readContract, wagmiConfig } = await getWagmiActions();
-          const owner = (await readContract(wagmiConfig, {
-            address: routerAddress,
-            abi: AAVE_ROUTER_ABI,
-            functionName: 'debtOwners',
-            args: [debtAddress],
-          })) as Address;
-
-          return owner.toLowerCase() === userAddress.toLowerCase();
-        },
-        'AaveRouter',
-        'debtOwners',
-        [debtAddress],
-      );
-    };
-
-    return {
-      getUserNonce,
-      checkDebtOwnership,
-      getUserDebtPositions,
-      getPositionDetails,
-    };
-  }, [address, chainId]);
-}
-
 export default {
   useContract,
   useTokenOperations,
   useMultiTokenOperations,
-  useDebtPositionOperations,
 };

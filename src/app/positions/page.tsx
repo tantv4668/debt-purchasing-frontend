@@ -368,14 +368,18 @@ export default function PositionsPage() {
                           <div className='grid grid-cols-1 md:grid-cols-3 gap-6 mb-6'>
                             {/* Collateral */}
                             <div>
-                              <h4 className='text-sm font-medium text-gray-700 mb-3'>Collateral</h4>
+                              <h4 className='text-sm font-medium text-gray-700 dark:text-gray-300 mb-3'>Collateral</h4>
                               <div className='space-y-2'>
                                 {position.collaterals.map((collateral, idx) => (
                                   <div key={idx} className='flex justify-between items-center'>
-                                    <span className='text-sm text-gray-600'>{collateral.symbol}</span>
+                                    <span className='text-sm text-gray-600 dark:text-gray-400'>
+                                      {collateral.symbol}
+                                    </span>
                                     <div className='text-right'>
-                                      <div className='text-sm font-medium'>{collateral.balanceFormatted}</div>
-                                      <div className='text-xs text-gray-500'>
+                                      <div className='text-sm font-medium text-gray-900 dark:text-white'>
+                                        {collateral.balanceFormatted}
+                                      </div>
+                                      <div className='text-xs text-gray-500 dark:text-gray-400'>
                                         ${collateral.valueInUSD.toLocaleString()}
                                       </div>
                                     </div>
@@ -386,14 +390,18 @@ export default function PositionsPage() {
 
                             {/* Debt */}
                             <div>
-                              <h4 className='text-sm font-medium text-gray-700 mb-3'>Debt</h4>
+                              <h4 className='text-sm font-medium text-gray-700 dark:text-gray-300 mb-3'>Debt</h4>
                               <div className='space-y-2'>
                                 {position.debts.map((debt, idx) => (
                                   <div key={idx} className='flex justify-between items-center'>
-                                    <span className='text-sm text-gray-600'>{debt.symbol}</span>
+                                    <span className='text-sm text-gray-600 dark:text-gray-400'>{debt.symbol}</span>
                                     <div className='text-right'>
-                                      <div className='text-sm font-medium'>{debt.balanceFormatted}</div>
-                                      <div className='text-xs text-gray-500'>${debt.valueInUSD.toLocaleString()}</div>
+                                      <div className='text-sm font-medium text-gray-900 dark:text-white'>
+                                        {debt.balanceFormatted}
+                                      </div>
+                                      <div className='text-xs text-gray-500 dark:text-gray-400'>
+                                        ${debt.valueInUSD.toLocaleString()}
+                                      </div>
                                     </div>
                                   </div>
                                 ))}
@@ -402,11 +410,15 @@ export default function PositionsPage() {
 
                             {/* Health Factor */}
                             <div>
-                              <h4 className='text-sm font-medium text-gray-700 mb-3'>Health Factor</h4>
+                              <h4 className='text-sm font-medium text-gray-700 dark:text-gray-300 mb-3'>
+                                Health Factor
+                              </h4>
                               <div className='text-2xl font-bold mb-1' style={{ color: healthFactor.color }}>
                                 {healthFactor.value.toFixed(2)}
                               </div>
-                              <div className='text-xs text-gray-500'>{healthFactor.value > 1 ? 'Safe' : 'At Risk'}</div>
+                              <div className='text-xs text-gray-500 dark:text-gray-400'>
+                                {healthFactor.value > 1 ? 'Safe' : 'At Risk'}
+                              </div>
                             </div>
                           </div>
 
@@ -415,14 +427,14 @@ export default function PositionsPage() {
                             <div className='flex space-x-3'>
                               <button
                                 onClick={() => handleCreateSellOrder(position)}
-                                className='px-4 py-2 bg-orange-50 text-orange-600 rounded-lg text-sm font-medium hover:bg-orange-100 transition-colors'
+                                className='px-4 py-2 bg-orange-50 dark:bg-orange-900 text-orange-600 dark:text-orange-200 rounded-lg text-sm font-medium hover:bg-orange-100 dark:hover:bg-orange-800 transition-colors'
                               >
                                 Create Sell Order
                               </button>
-                              <button className='px-4 py-2 bg-blue-50 text-blue-600 rounded-lg text-sm font-medium hover:bg-blue-100 transition-colors'>
+                              <button className='px-4 py-2 bg-blue-50 dark:bg-blue-900 text-blue-600 dark:text-blue-200 rounded-lg text-sm font-medium hover:bg-blue-100 dark:hover:bg-blue-800 transition-colors'>
                                 Manage Position
                               </button>
-                              <button className='px-4 py-2 bg-gray-50 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-100 transition-colors'>
+                              <button className='px-4 py-2 bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-lg text-sm font-medium hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors'>
                                 View Details
                               </button>
                             </div>
