@@ -22,6 +22,15 @@ export default function PositionsPage() {
   const positionSummary = useUserPositionSummary();
   const ordersSummary = useUserOrdersSummary();
 
+  // Debug logging
+  console.log('Positions Debug:', {
+    address,
+    positionsCount: positions?.length || 0,
+    positions: positions?.slice(0, 2), // Log first 2 positions
+    isLoading: positionsLoading,
+    error: positionsError,
+  });
+
   const isLoading = positionsLoading || ordersLoading;
   const error = positionsError || ordersError;
 
@@ -124,9 +133,9 @@ export default function PositionsPage() {
                 <p className='text-sm font-medium text-gray-600 dark:text-gray-400'>Total Positions</p>
                 <p className='text-2xl font-bold text-gray-900 dark:text-white'>{positionSummary.totalPositions}</p>
               </div>
-              <div className='w-12 h-12 bg-blue-100 dark:bg-blue-900 rounded-lg flex items-center justify-center'>
+              <div className='w-12 h-12 bg-blue-50 dark:bg-blue-800 rounded-lg flex items-center justify-center'>
                 <svg
-                  className='w-6 h-6 text-blue-600'
+                  className='w-6 h-6 text-blue-600 dark:text-blue-300'
                   fill='none'
                   stroke='currentColor'
                   viewBox='0 0 24 24'
@@ -151,9 +160,9 @@ export default function PositionsPage() {
                   ${positionSummary.totalDebtValue.toLocaleString()}
                 </p>
               </div>
-              <div className='w-12 h-12 bg-red-100 dark:bg-red-900 rounded-lg flex items-center justify-center'>
+              <div className='w-12 h-12 bg-red-50 dark:bg-red-800 rounded-lg flex items-center justify-center'>
                 <svg
-                  className='w-6 h-6 text-red-600'
+                  className='w-6 h-6 text-red-500 dark:text-red-300'
                   fill='none'
                   stroke='currentColor'
                   viewBox='0 0 24 24'
@@ -181,19 +190,19 @@ export default function PositionsPage() {
               <div
                 className={`w-12 h-12 rounded-lg flex items-center justify-center ${
                   positionSummary.averageHealthFactor > 2
-                    ? 'bg-green-100 dark:bg-green-900'
+                    ? 'bg-green-50 dark:bg-green-800'
                     : positionSummary.averageHealthFactor > 1.5
-                    ? 'bg-yellow-100 dark:bg-yellow-900'
-                    : 'bg-red-100 dark:bg-red-900'
+                    ? 'bg-yellow-50 dark:bg-yellow-800'
+                    : 'bg-red-50 dark:bg-red-800'
                 }`}
               >
                 <svg
                   className={`w-6 h-6 ${
                     positionSummary.averageHealthFactor > 2
-                      ? 'text-green-600'
+                      ? 'text-green-600 dark:text-green-300'
                       : positionSummary.averageHealthFactor > 1.5
-                      ? 'text-yellow-600'
-                      : 'text-red-600'
+                      ? 'text-yellow-600 dark:text-yellow-300'
+                      : 'text-red-600 dark:text-red-300'
                   }`}
                   fill='none'
                   stroke='currentColor'
@@ -213,9 +222,9 @@ export default function PositionsPage() {
                 <p className='text-sm font-medium text-gray-600 dark:text-gray-400'>Active Orders</p>
                 <p className='text-2xl font-bold text-orange-600'>{ordersSummary.activeOrders}</p>
               </div>
-              <div className='w-12 h-12 bg-orange-100 dark:bg-orange-900 rounded-lg flex items-center justify-center'>
+              <div className='w-12 h-12 bg-orange-50 dark:bg-orange-800 rounded-lg flex items-center justify-center'>
                 <svg
-                  className='w-6 h-6 text-orange-600'
+                  className='w-6 h-6 text-orange-600 dark:text-orange-300'
                   fill='none'
                   stroke='currentColor'
                   viewBox='0 0 24 24'
@@ -238,9 +247,9 @@ export default function PositionsPage() {
                 <p className='text-sm font-medium text-gray-600 dark:text-gray-400'>Total Orders</p>
                 <p className='text-2xl font-bold text-gray-900 dark:text-white'>{ordersSummary.totalOrders}</p>
               </div>
-              <div className='w-12 h-12 bg-purple-100 dark:bg-purple-900 rounded-lg flex items-center justify-center'>
+              <div className='w-12 h-12 bg-purple-50 dark:bg-purple-800 rounded-lg flex items-center justify-center'>
                 <svg
-                  className='w-6 h-6 text-purple-600'
+                  className='w-6 h-6 text-purple-600 dark:text-purple-300'
                   fill='none'
                   stroke='currentColor'
                   viewBox='0 0 24 24'

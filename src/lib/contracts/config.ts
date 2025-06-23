@@ -55,3 +55,105 @@ export const POSITION_CONFIG = {
   FALLBACK_RETRY_COUNT: 3,
   POSITION_CACHE_KEY: 'user_debt_positions',
 } as const;
+
+// Subgraph endpoints configuration
+export const SUBGRAPH_ENDPOINTS = {
+  1: 'https://api.thegraph.com/subgraphs/name/debt-purchasing/mainnet', // Mainnet (placeholder)
+  11155111: 'https://api.thegraph.com/subgraphs/name/debt-purchasing/sepolia', // Sepolia (placeholder)
+} as const;
+
+// Development configuration
+export const SUBGRAPH_CONFIG = {
+  USE_MOCK_DATA: false, // Set to false when real subgraph is deployed
+  MOCK_DELAY: 1000, // Simulate network delay in development
+  ENABLE_LOGGING: true,
+} as const;
+
+// GraphQL queries
+export const SUBGRAPH_QUERIES = {
+  GET_USER_POSITIONS: `
+    query GetUserPositions($userAddress: String!) {
+      user(id: $userAddress) {
+        id
+        totalPositions
+        totalVolumeTraded
+        positions {
+          id
+          nonce
+          lastUpdatedAt
+          collaterals {
+            id
+            token {
+              id
+              symbol
+              decimals
+              priceUSD
+            }
+            amount
+            lastUpdatedAt
+          }
+          debts {
+            id
+            token {
+              id
+              symbol
+              decimals
+              priceUSD
+            }
+            amount
+            interestRateMode
+            lastUpdatedAt
+          }
+        }
+      }
+    }
+  `,
+
+  GET_POSITION_DETAILS: `
+    query GetPositionDetails($positionId: String!) {
+      debtPosition(id: $positionId) {
+        id
+        owner {
+          id
+        }
+        nonce
+        lastUpdatedAt
+        collaterals {
+          id
+          token {
+            id
+            symbol
+            decimals
+            priceUSD
+          }
+          amount
+          lastUpdatedAt
+        }
+        debts {
+          id
+          token {
+            id
+            symbol
+            decimals
+            priceUSD
+          }
+          amount
+          interestRateMode
+          lastUpdatedAt
+        }
+      }
+    }
+  `,
+
+  GET_TOKEN_PRICES: `
+    query GetTokenPrices($tokenAddresses: [String!]!) {
+      tokens(where: { id_in: $tokenAddresses }) {
+        id
+        symbol
+        decimals
+        priceUSD
+        lastUpdatedAt
+      }
+    }
+  `,
+} as const;

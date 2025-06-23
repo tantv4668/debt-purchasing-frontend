@@ -1,18 +1,18 @@
 import { useEffect, useMemo, useState } from 'react';
 import { encodeFunctionData, formatUnits } from 'viem';
-import { useAccount, useReadContract, useReadContracts, useWriteContract } from 'wagmi';
+import { useAccount, useChainId, useReadContract, useReadContracts, useWriteContract } from 'wagmi';
 import { AAVE_ROUTER_ABI, ERC20_ABI, getAaveRouterAddress } from '../contracts';
 import { CONTRACT_DEFAULTS } from '../contracts/config';
 import { SUPPORTED_TOKENS } from '../contracts/tokens';
 import type { CreatePositionParams, DebtPosition, UserPositionSummary } from '../types/debt-position';
 import { validateWalletConnection } from '../utils/contract-helpers';
 import { logger } from '../utils/logger';
-import { DebtPositionData, useDebtPositionOperations } from './useContracts';
+import { getSubgraphClient, isSubgraphSupported } from '../utils/subgraph-client';
 
-// Hook to get user's debt positions
+// Hook to get user's debt positions from backend API
 export function useUserDebtPositions() {
   const { address } = useAccount();
-  const debtOps = useDebtPositionOperations();
+  const chainId = useChainId();
   const [positions, setPositions] = useState<DebtPosition[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -23,32 +23,129 @@ export function useUserDebtPositions() {
       return;
     }
 
+    if (!chainId || !isSubgraphSupported(chainId)) {
+      logger.warn(`Subgraph not supported for chain ID: ${chainId}`);
+      setError(`Subgraph not supported for this network`);
+      setPositions([]);
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
 
     try {
-      const debtPositions = await debtOps.getUserDebtPositions();
-      const formattedPositions: DebtPosition[] = debtPositions.map((position: DebtPositionData) => ({
-        address: position.debtAddress,
-        owner: address,
-        nonce: 0, // TODO: Get actual nonce from contract
-        totalCollateralBase: position.totalCollateralBase,
-        totalDebtBase: position.totalDebtBase,
-        availableBorrowsBase: position.totalCollateralBase - position.totalDebtBase, // Simplified calculation
-        currentLiquidationThreshold: position.liquidationThreshold,
-        ltv: position.ltv,
-        healthFactor: position.healthFactor,
-        collaterals: [], // TODO: Implement detailed asset breakdown
-        debts: [], // TODO: Implement detailed asset breakdown
-        createdAt: Date.now(), // TODO: Get from events
-        lastUpdated: Date.now(),
-      }));
+      logger.info('Fetching user debt positions from backend API for:', address);
+
+      const subgraphClient = getSubgraphClient(chainId);
+      const cachedData = await subgraphClient.getCachedPositions(address.toLowerCase());
+
+      if (!cachedData || !cachedData.positions || cachedData.positions.length === 0) {
+        logger.info('No positions found for user');
+        setPositions([]);
+        return;
+      }
+
+      const formattedPositions: DebtPosition[] = cachedData.positions.map((position: any) => {
+        // Get token info for collaterals and debts (fallback values since backend doesn't include full token data)
+        const getTokenInfo = (tokenAddress: string) => {
+          // Look up token in SUPPORTED_TOKENS by address
+          const tokenEntry = Object.entries(SUPPORTED_TOKENS).find(
+            ([, token]) =>
+              token.addresses[chainId as keyof typeof token.addresses]?.toLowerCase() === tokenAddress.toLowerCase(),
+          );
+
+          if (tokenEntry) {
+            const [symbol, tokenConfig] = tokenEntry;
+            return {
+              symbol,
+              decimals: tokenConfig.decimals,
+              priceUSD: 1.0, // Default price, would need to fetch from oracle
+            };
+          }
+
+          // Fallback for unknown tokens
+          return {
+            symbol: 'UNKNOWN',
+            decimals: 18,
+            priceUSD: 1.0,
+          };
+        };
+
+        // Calculate totals in USD
+        let totalCollateralUSD = 0;
+        let totalDebtUSD = 0;
+
+        // Format collaterals
+        const collaterals = position.collaterals.map((collateral: any) => {
+          const amount = parseFloat(collateral.amount);
+          const tokenInfo = getTokenInfo(collateral.token);
+          const price = tokenInfo.priceUSD;
+          const valueInUSD = amount * price;
+          const balance = BigInt(Math.floor(amount * Math.pow(10, tokenInfo.decimals)));
+          totalCollateralUSD += valueInUSD;
+
+          return {
+            token: collateral.token as `0x${string}`,
+            symbol: tokenInfo.symbol,
+            name: tokenInfo.symbol,
+            decimals: tokenInfo.decimals,
+            balance,
+            balanceFormatted: amount.toFixed(4),
+            valueInBase: BigInt(Math.floor(valueInUSD * 1e18)),
+            valueInUSD: valueInUSD,
+            aTokenAddress: '0x0000000000000000000000000000000000000000' as `0x${string}`,
+          };
+        });
+
+        // Format debts
+        const debts = position.debts.map((debt: any) => {
+          const amount = parseFloat(debt.amount);
+          const tokenInfo = getTokenInfo(debt.token);
+          const price = tokenInfo.priceUSD;
+          const valueInUSD = amount * price;
+          const balance = BigInt(Math.floor(amount * Math.pow(10, tokenInfo.decimals)));
+          totalDebtUSD += valueInUSD;
+
+          return {
+            token: debt.token as `0x${string}`,
+            symbol: tokenInfo.symbol,
+            name: tokenInfo.symbol,
+            decimals: tokenInfo.decimals,
+            balance,
+            balanceFormatted: amount.toFixed(4),
+            valueInBase: BigInt(Math.floor(valueInUSD * 1e18)),
+            valueInUSD: valueInUSD,
+            interestRateMode: parseInt(debt.interestRateMode) as 1 | 2,
+            variableDebtTokenAddress: '0x0000000000000000000000000000000000000000' as `0x${string}`,
+            stableDebtTokenAddress: '0x0000000000000000000000000000000000000000' as `0x${string}`,
+          };
+        });
+
+        // Parse health factor from backend (it's already a string like "1.0")
+        const healthFactorValue = parseFloat(position.healthFactor || '1.0');
+
+        return {
+          address: position.id as `0x${string}`,
+          owner: address,
+          nonce: parseInt(position.nonce || '0'),
+          totalCollateralBase: BigInt(Math.floor(totalCollateralUSD * 1e18)),
+          totalDebtBase: BigInt(Math.floor(totalDebtUSD * 1e18)),
+          availableBorrowsBase: BigInt(Math.floor((totalCollateralUSD * 0.8 - totalDebtUSD) * 1e18)),
+          currentLiquidationThreshold: BigInt(Math.floor(0.85 * 1e18)), // 85%
+          ltv: BigInt(Math.floor(0.8 * 1e18)), // 80%
+          healthFactor: BigInt(Math.floor(healthFactorValue * 1e18)),
+          collaterals,
+          debts,
+          createdAt: new Date(position.createdAt).getTime(),
+          lastUpdated: new Date(position.updatedAt).getTime(),
+        };
+      });
 
       setPositions(formattedPositions);
-      logger.info(`Successfully loaded ${formattedPositions.length} debt positions`);
+      logger.info(`Successfully loaded ${formattedPositions.length} debt positions from subgraph`);
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch positions';
-      logger.error('Error fetching debt positions:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch positions from subgraph';
+      logger.error('Error fetching debt positions from subgraph:', err);
       setError(errorMessage);
       setPositions([]);
     } finally {
@@ -58,7 +155,7 @@ export function useUserDebtPositions() {
 
   useEffect(() => {
     fetchPositions();
-  }, [address]);
+  }, [address, chainId]);
 
   return { positions, isLoading, error, refetch: fetchPositions };
 }

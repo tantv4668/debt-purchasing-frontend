@@ -1,13 +1,11 @@
 import { useMemo } from 'react';
 import { Address } from 'viem';
-import { useAccount, useWriteContract } from 'wagmi';
+import { useAccount, useChainId, useWriteContract } from 'wagmi';
 import { ChainId, getAaveRouterAddress } from '../contracts';
 import { AAVE_POOL_ABI, AAVE_ROUTER_ABI, ERC20_ABI } from '../contracts/abis';
-import { getContractAddress } from '../contracts/addresses';
-import { AAVE_POOL_EXTENSIONS, CONTRACT_DEFAULTS, POSITION_CONFIG } from '../contracts/config';
+import { AAVE_POOL_EXTENSIONS, CONTRACT_DEFAULTS } from '../contracts/config';
 import { SUPPORTED_TOKENS } from '../contracts/tokens';
 import {
-  calculateSalt,
   getMaxApprovalAmount,
   getTokenAddress,
   getWagmiActions,
@@ -17,6 +15,14 @@ import {
   validateWalletConnection,
 } from '../utils/contract-helpers';
 import { logger } from '../utils/logger';
+import {
+  SubgraphCollateral,
+  SubgraphDebt,
+  SubgraphPosition,
+  UserPositionsResponse,
+  getSubgraphClient,
+  isSubgraphSupported,
+} from '../utils/subgraph-client';
 
 // Complete Aave Pool ABI
 const AAVE_POOL_COMPLETE_ABI = [...AAVE_POOL_ABI, ...AAVE_POOL_EXTENSIONS] as const;
@@ -168,14 +174,96 @@ export function useMultiTokenOperations(chainId: ChainId = CONTRACT_DEFAULTS.CHA
   }, [tokenOps]);
 }
 
-// Debt Position Operations Hook
-export function useDebtPositionOperations(chainId: ChainId = CONTRACT_DEFAULTS.CHAIN_ID) {
+// Debt Position Operations Hook (Subgraph-based)
+export function useDebtPositionOperations() {
   const { address } = useAccount();
-  const routerAddress = getAaveRouterAddress(chainId);
+  const chainId = useChainId();
 
   return useMemo(() => {
+    const getUserDebtPositions = async (): Promise<DebtPositionData[]> => {
+      if (!address) {
+        logger.info('No wallet address provided');
+        return [];
+      }
+
+      if (!chainId || !isSubgraphSupported(chainId as ChainId)) {
+        logger.warn(`Subgraph not supported for chain ID: ${chainId}`);
+        return [];
+      }
+
+      try {
+        logger.info('Fetching user debt positions from subgraph for:', address);
+
+        const subgraphClient = getSubgraphClient(chainId as ChainId);
+        const response: UserPositionsResponse = await subgraphClient.getUserPositions(address);
+
+        if (!response.user || !response.user.positions) {
+          logger.info('No positions found for user');
+          return [];
+        }
+
+        const positions: DebtPositionData[] = response.user.positions.map((position: SubgraphPosition) => {
+          // Calculate total collateral and debt values in USD
+          let totalCollateralUSD = 0;
+          let totalDebtUSD = 0;
+
+          position.collaterals.forEach((collateral: SubgraphCollateral) => {
+            const amount = parseFloat(collateral.amount);
+            const price = parseFloat(collateral.token.priceUSD);
+            totalCollateralUSD += amount * price;
+          });
+
+          position.debts.forEach((debt: SubgraphDebt) => {
+            const amount = parseFloat(debt.amount);
+            const price = parseFloat(debt.token.priceUSD);
+            totalDebtUSD += amount * price;
+          });
+
+          // Calculate health factor (simplified - in practice you'd use Aave's formula)
+          const healthFactor = totalDebtUSD > 0 ? (totalCollateralUSD * 0.8) / totalDebtUSD : 999; // Assuming 80% LTV
+
+          return {
+            debtAddress: position.id as Address,
+            totalCollateralBase: BigInt(Math.floor(totalCollateralUSD * 1e18)), // Convert to base units
+            totalDebtBase: BigInt(Math.floor(totalDebtUSD * 1e18)),
+            healthFactor: BigInt(Math.floor(healthFactor * 1e18)),
+            ltv: BigInt(Math.floor(0.8 * 1e18)), // 80% LTV
+            liquidationThreshold: BigInt(Math.floor(0.85 * 1e18)), // 85% liquidation threshold
+            isActive: isPositionActive(
+              BigInt(Math.floor(totalCollateralUSD * 1e18)),
+              BigInt(Math.floor(totalDebtUSD * 1e18)),
+            ),
+          };
+        });
+
+        logger.info(`Successfully loaded ${positions.length} positions from subgraph`);
+        return positions;
+      } catch (error) {
+        logger.error('Error fetching positions from subgraph:', error);
+        return [];
+      }
+    };
+
+    const getPositionDetails = async (positionId: string) => {
+      if (!chainId || !isSubgraphSupported(chainId as ChainId)) {
+        logger.warn(`Subgraph not supported for chain ID: ${chainId}`);
+        return null;
+      }
+
+      try {
+        const subgraphClient = getSubgraphClient(chainId as ChainId);
+        const response = await subgraphClient.getPositionDetails(positionId);
+        return response.debtPosition;
+      } catch (error) {
+        logger.error('Error fetching position details:', error);
+        return null;
+      }
+    };
+
+    // Keep some legacy functions for backward compatibility
     const getUserNonce = async (): Promise<bigint> => {
       const userAddress = validateWalletConnection(address);
+      const routerAddress = getAaveRouterAddress(chainId as ChainId);
 
       return safeContractCall(
         async () => {
@@ -195,6 +283,7 @@ export function useDebtPositionOperations(chainId: ChainId = CONTRACT_DEFAULTS.C
 
     const checkDebtOwnership = async (debtAddress: Address): Promise<boolean> => {
       const userAddress = validateWalletConnection(address);
+      const routerAddress = getAaveRouterAddress(chainId as ChainId);
 
       return safeContractCall(
         async () => {
@@ -214,151 +303,13 @@ export function useDebtPositionOperations(chainId: ChainId = CONTRACT_DEFAULTS.C
       );
     };
 
-    const getDebtPositionData = async (debtAddress: Address): Promise<DebtPositionData | null> => {
-      return safeContractCall(
-        async () => {
-          const { readContract, wagmiConfig } = await getWagmiActions();
-          const poolAddress = getContractAddress(chainId, 'poolProxy') as Address;
-
-          const accountData = (await readContract(wagmiConfig, {
-            address: poolAddress,
-            abi: AAVE_POOL_COMPLETE_ABI,
-            functionName: 'getUserAccountData',
-            args: [debtAddress],
-          })) as [bigint, bigint, bigint, bigint, bigint, bigint];
-
-          const [
-            totalCollateralBase,
-            totalDebtBase,
-            availableBorrowsBase,
-            currentLiquidationThreshold,
-            ltv,
-            healthFactor,
-          ] = accountData;
-
-          return {
-            debtAddress,
-            totalCollateralBase,
-            totalDebtBase,
-            healthFactor,
-            ltv,
-            liquidationThreshold: currentLiquidationThreshold,
-            isActive: isPositionActive(totalCollateralBase, totalDebtBase),
-          };
-        },
-        'AavePool',
-        'getUserAccountData',
-        [debtAddress],
-      );
-    };
-
-    // Main function to get all user debt positions
-    const getUserDebtPositions = async (): Promise<DebtPositionData[]> => {
-      if (!address) return [];
-
-      try {
-        logger.info('Fetching user debt positions for:', address);
-
-        const userNonce = await getUserNonce();
-        logger.info(`User nonce: ${userNonce.toString()}`);
-
-        if (Number(userNonce) === 0) {
-          logger.info('User has no debt positions (nonce is 0)');
-          return [];
-        }
-
-        // Try to get implementation address for CREATE2 calculation
-        let positions: DebtPositionData[] = [];
-
-        try {
-          positions = await getPositionsByNonceIteration(Number(userNonce));
-        } catch (error) {
-          logger.warn('Nonce iteration failed, trying fallback approach:', error);
-          positions = await getFallbackPositions();
-        }
-
-        logger.info(`Found ${positions.length} total positions`);
-        return positions;
-      } catch (error) {
-        logger.error('Error getting user debt positions:', error);
-        return [];
-      }
-    };
-
-    // Helper: Get positions by iterating through nonces
-    const getPositionsByNonceIteration = async (userNonce: number): Promise<DebtPositionData[]> => {
-      const positions: DebtPositionData[] = [];
-      const maxIterations = Math.min(userNonce, POSITION_CONFIG.MAX_NONCE_ITERATIONS);
-
-      logger.info(`Checking positions for nonces 0 to ${maxIterations - 1}`);
-
-      for (let nonce = 0; nonce < maxIterations; nonce++) {
-        try {
-          const salt = await calculateSalt(address as Address, nonce);
-          logger.debug(`Checking nonce ${nonce} with salt: ${salt}`);
-
-          // For now, we'll use the fallback approach since CREATE2 calculation is complex
-          // This is where you'd implement proper CREATE2 address calculation
-          // const calculatedAddress = calculateCREATE2Address(routerAddress, salt, implementationHash);
-        } catch (error) {
-          logger.error(`Error checking nonce ${nonce}:`, error);
-          continue;
-        }
-      }
-
-      return positions;
-    };
-
-    // Helper: Fallback approach for finding positions
-    const getFallbackPositions = async (): Promise<DebtPositionData[]> => {
-      logger.info('Using fallback approach to find positions');
-
-      return safeContractCall(
-        async () => {
-          const { readContract, wagmiConfig } = await getWagmiActions();
-          const positions: DebtPositionData[] = [];
-
-          // Get the current predicted address (for next position)
-          const nextPredictedAddress = (await readContract(wagmiConfig, {
-            address: routerAddress,
-            abi: AAVE_ROUTER_ABI,
-            functionName: 'predictDebtAddress',
-            args: [address],
-          })) as Address;
-
-          logger.info('Next predicted address:', nextPredictedAddress);
-
-          // Test the predicted address
-          const positionData = await getDebtPositionData(nextPredictedAddress);
-
-          if (positionData) {
-            const isOwned = await checkDebtOwnership(nextPredictedAddress);
-            logger.info('Is owned by user:', isOwned);
-
-            if (isOwned && positionData.isActive) {
-              positions.push(positionData);
-              logger.info('✅ Added position:', nextPredictedAddress);
-            } else {
-              logger.info('❌ Position not active or not owned');
-            }
-          } else {
-            logger.info('❌ No position data found');
-          }
-
-          return positions;
-        },
-        'AaveRouter',
-        'fallbackPositionSearch',
-      );
-    };
-
     return {
       getUserNonce,
       checkDebtOwnership,
-      getDebtPositionData,
       getUserDebtPositions,
+      getPositionDetails,
     };
-  }, [address, chainId, routerAddress]);
+  }, [address, chainId]);
 }
 
 export default {
