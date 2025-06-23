@@ -8,6 +8,7 @@ import { SUPPORTED_TOKENS } from '../lib/contracts/tokens';
 import { useMultiTokenOperations } from '../lib/hooks/useContracts';
 import { useCreatePosition, usePredictDebtAddress, useTokenBalances } from '../lib/hooks/useDebtPositions';
 import { useModalCache } from '../lib/hooks/useModalCache';
+import { usePriceTokens } from '../lib/hooks/usePriceTokens';
 import type { CreatePositionParams, TokenSymbol } from '../lib/types/debt-position';
 
 interface CreateDebtModalProps {
@@ -24,6 +25,15 @@ export default function CreateDebtModal({ isOpen, onClose }: CreateDebtModalProp
   const { createPosition, isPending: isCreating } = useCreatePosition();
   const multiTokenOps = useMultiTokenOperations(ChainId.SEPOLIA);
   const { cachedState, saveToCache, clearCache, hasValidCache } = useModalCache();
+  const {
+    calculateUSDValue,
+    formatUSDValue,
+    getTotalUSDValue,
+    getPriceBySymbol,
+    isLoading: pricesLoading,
+    error: pricesError,
+    refreshPrices,
+  } = usePriceTokens();
 
   const [step, setStep] = useState<Step>('select-supply');
   const [isApproving, setIsApproving] = useState(false);
@@ -407,24 +417,37 @@ export default function CreateDebtModal({ isOpen, onClose }: CreateDebtModalProp
                                     tokenBalances[symbol as keyof typeof tokenBalances]?.formatted || '0',
                                   ).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                 </div>
+                                <div className='text-xs text-gray-500'>
+                                  {(() => {
+                                    const price = getPriceBySymbol(symbol);
+                                    return price > 0 ? `$${price.toFixed(4)}` : 'Price loading...';
+                                  })()}
+                                </div>
                               </div>
                             </div>
 
                             {assetState?.selected && (
                               <div className='flex items-center space-x-2'>
-                                <input
-                                  type='number'
-                                  placeholder='0.0'
-                                  value={assetState.amount}
-                                  onChange={e => {
-                                    setCollateralAssets(prev =>
-                                      prev.map(asset =>
-                                        asset.symbol === symbol ? { ...asset, amount: e.target.value } : asset,
-                                      ),
-                                    );
-                                  }}
-                                  className='w-24 px-3 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 font-medium text-sm'
-                                />
+                                <div className='text-right'>
+                                  <input
+                                    type='number'
+                                    placeholder='0.0'
+                                    value={assetState.amount}
+                                    onChange={e => {
+                                      setCollateralAssets(prev =>
+                                        prev.map(asset =>
+                                          asset.symbol === symbol ? { ...asset, amount: e.target.value } : asset,
+                                        ),
+                                      );
+                                    }}
+                                    className='w-24 px-3 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 font-medium text-sm'
+                                  />
+                                  {assetState.amount && parseFloat(assetState.amount) > 0 && (
+                                    <div className='text-xs text-blue-600 mt-1 font-medium'>
+                                      {formatUSDValue(calculateUSDValue(assetState.amount, symbol))}
+                                    </div>
+                                  )}
+                                </div>
                               </div>
                             )}
                           </div>
@@ -439,6 +462,11 @@ export default function CreateDebtModal({ isOpen, onClose }: CreateDebtModalProp
                   const assetsWithAmounts = collateralAssets.filter(
                     a => a.selected && a.amount && parseFloat(a.amount) > 0,
                   ).length;
+                  const totalValue = getTotalUSDValue(
+                    collateralAssets
+                      .filter(a => a.selected && a.amount && parseFloat(a.amount) > 0)
+                      .map(a => ({ symbol: a.symbol, amount: a.amount })),
+                  );
 
                   return (
                     <button
@@ -448,7 +476,9 @@ export default function CreateDebtModal({ isOpen, onClose }: CreateDebtModalProp
                     >
                       {selectedCollaterals === 0
                         ? 'Select Supply Assets to Continue'
-                        : `Continue (${selectedCollaterals} Asset${selectedCollaterals > 1 ? 's' : ''} Selected)`}
+                        : `Continue (${selectedCollaterals} Asset${selectedCollaterals > 1 ? 's' : ''} Selected${
+                            totalValue > 0 ? ` • ${formatUSDValue(totalValue)}` : ''
+                          })`}
                     </button>
                   );
                 })()}
@@ -528,24 +558,39 @@ export default function CreateDebtModal({ isOpen, onClose }: CreateDebtModalProp
                                 >
                                   {isCollateral ? 'Collateral' : 'Can borrow'}
                                 </div>
+                                {!isCollateral && (
+                                  <div className='text-xs text-gray-500'>
+                                    {(() => {
+                                      const price = getPriceBySymbol(symbol);
+                                      return price > 0 ? `$${price.toFixed(4)}` : 'Price loading...';
+                                    })()}
+                                  </div>
+                                )}
                               </div>
                             </div>
 
                             {borrowState?.selected && !isCollateral && (
                               <div className='flex items-center space-x-3'>
-                                <input
-                                  type='number'
-                                  placeholder='0.0'
-                                  value={borrowState.amount}
-                                  onChange={e => {
-                                    setBorrowAssets(prev =>
-                                      prev.map(asset =>
-                                        asset.symbol === symbol ? { ...asset, amount: e.target.value } : asset,
-                                      ),
-                                    );
-                                  }}
-                                  className='w-24 px-3 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 font-medium text-sm'
-                                />
+                                <div className='text-right'>
+                                  <input
+                                    type='number'
+                                    placeholder='0.0'
+                                    value={borrowState.amount}
+                                    onChange={e => {
+                                      setBorrowAssets(prev =>
+                                        prev.map(asset =>
+                                          asset.symbol === symbol ? { ...asset, amount: e.target.value } : asset,
+                                        ),
+                                      );
+                                    }}
+                                    className='w-24 px-3 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 font-medium text-sm'
+                                  />
+                                  {borrowState.amount && parseFloat(borrowState.amount) > 0 && (
+                                    <div className='text-xs text-green-600 mt-1 font-medium'>
+                                      {formatUSDValue(calculateUSDValue(borrowState.amount, symbol))}
+                                    </div>
+                                  )}
+                                </div>
                                 <select
                                   value={borrowState.interestRateMode}
                                   onChange={e => {
@@ -587,8 +632,15 @@ export default function CreateDebtModal({ isOpen, onClose }: CreateDebtModalProp
                       const selectedBorrows = borrowAssets.filter(
                         a => a.selected && a.amount && parseFloat(a.amount) > 0,
                       ).length;
+                      const totalValue = getTotalUSDValue(
+                        borrowAssets
+                          .filter(a => a.selected && a.amount && parseFloat(a.amount) > 0)
+                          .map(a => ({ symbol: a.symbol, amount: a.amount })),
+                      );
                       if (selectedBorrows === 0) return 'Select Borrow Assets';
-                      return `Review (${selectedBorrows} Asset${selectedBorrows > 1 ? 's' : ''})`;
+                      return `Review (${selectedBorrows} Asset${selectedBorrows > 1 ? 's' : ''}${
+                        totalValue > 0 ? ` • ${formatUSDValue(totalValue)}` : ''
+                      })`;
                     })()}
                   </button>
                 </div>
@@ -598,18 +650,53 @@ export default function CreateDebtModal({ isOpen, onClose }: CreateDebtModalProp
             {/* Step 3: Review */}
             {step === 'review' && (
               <div className='space-y-6'>
+                {/* Price Status Indicator */}
+                {pricesError && (
+                  <div className='bg-yellow-50 border border-yellow-200 rounded-lg p-3'>
+                    <div className='flex items-center justify-between'>
+                      <div className='flex items-center space-x-2'>
+                        <div className='text-yellow-600'>⚠️</div>
+                        <span className='text-sm text-yellow-800'>Price data unavailable - using fallback values</span>
+                      </div>
+                      <button
+                        onClick={refreshPrices}
+                        className='text-xs text-yellow-700 hover:text-yellow-900 underline'
+                      >
+                        Retry
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 {/* Collateral Assets */}
                 <div className='bg-blue-50 rounded-lg p-4'>
-                  <h3 className='font-semibold text-blue-900 mb-3'>💰 Collateral Assets</h3>
+                  <div className='flex justify-between items-center mb-3'>
+                    <h3 className='font-semibold text-blue-900'>💰 Collateral Assets</h3>
+                    <div className='text-sm font-medium text-blue-700'>
+                      Total:{' '}
+                      {formatUSDValue(
+                        getTotalUSDValue(
+                          collateralAssets
+                            .filter(asset => asset.selected && asset.amount && parseFloat(asset.amount) > 0)
+                            .map(asset => ({ symbol: asset.symbol, amount: asset.amount })),
+                        ),
+                      )}
+                    </div>
+                  </div>
                   <div className='space-y-2'>
                     {collateralAssets
                       .filter(asset => asset.selected && asset.amount && parseFloat(asset.amount) > 0)
                       .map(asset => (
                         <div key={asset.symbol} className='flex justify-between items-center'>
                           <span className='text-blue-800'>{asset.symbol}</span>
-                          <span className='font-medium text-blue-900'>
-                            {asset.amount} {asset.symbol}
-                          </span>
+                          <div className='text-right'>
+                            <div className='font-medium text-blue-900'>
+                              {asset.amount} {asset.symbol}
+                            </div>
+                            <div className='text-xs text-blue-600'>
+                              {formatUSDValue(calculateUSDValue(asset.amount, asset.symbol))}
+                            </div>
+                          </div>
                         </div>
                       ))}
                   </div>
@@ -617,7 +704,19 @@ export default function CreateDebtModal({ isOpen, onClose }: CreateDebtModalProp
 
                 {/* Borrow Assets */}
                 <div className='bg-green-50 rounded-lg p-4'>
-                  <h3 className='font-semibold text-green-900 mb-3'>📈 Borrow Assets</h3>
+                  <div className='flex justify-between items-center mb-3'>
+                    <h3 className='font-semibold text-green-900'>📈 Borrow Assets</h3>
+                    <div className='text-sm font-medium text-green-700'>
+                      Total:{' '}
+                      {formatUSDValue(
+                        getTotalUSDValue(
+                          borrowAssets
+                            .filter(asset => asset.selected && asset.amount && parseFloat(asset.amount) > 0)
+                            .map(asset => ({ symbol: asset.symbol, amount: asset.amount })),
+                        ),
+                      )}
+                    </div>
+                  </div>
                   <div className='space-y-2'>
                     {borrowAssets
                       .filter(asset => asset.selected && asset.amount && parseFloat(asset.amount) > 0)
@@ -625,9 +724,14 @@ export default function CreateDebtModal({ isOpen, onClose }: CreateDebtModalProp
                         <div key={asset.symbol}>
                           <div className='flex justify-between items-center'>
                             <span className='text-green-800'>{asset.symbol}</span>
-                            <span className='font-medium text-green-900'>
-                              {asset.amount} {asset.symbol}
-                            </span>
+                            <div className='text-right'>
+                              <div className='font-medium text-green-900'>
+                                {asset.amount} {asset.symbol}
+                              </div>
+                              <div className='text-xs text-green-600'>
+                                {formatUSDValue(calculateUSDValue(asset.amount, asset.symbol))}
+                              </div>
+                            </div>
                           </div>
                           <div className='text-xs text-green-600 text-right'>
                             {asset.interestRateMode === 1 ? 'Stable Rate' : 'Variable Rate'}
@@ -637,10 +741,36 @@ export default function CreateDebtModal({ isOpen, onClose }: CreateDebtModalProp
                   </div>
                 </div>
 
-                {/* Position Details */}
+                {/* Position Risk Summary */}
                 <div className='bg-gray-50 rounded-lg p-4 space-y-2'>
-                  <h3 className='font-semibold text-gray-900 mb-3'>🏦 Position Details</h3>
-                  <div className='flex justify-between'>
+                  <h3 className='font-semibold text-gray-900 mb-3'>🏦 Position Summary</h3>
+                  <div className='grid grid-cols-2 gap-4'>
+                    <div className='flex justify-between'>
+                      <span className='text-gray-600'>Collateral Value:</span>
+                      <span className='font-medium text-gray-900'>
+                        {formatUSDValue(
+                          getTotalUSDValue(
+                            collateralAssets
+                              .filter(asset => asset.selected && asset.amount && parseFloat(asset.amount) > 0)
+                              .map(asset => ({ symbol: asset.symbol, amount: asset.amount })),
+                          ),
+                        )}
+                      </span>
+                    </div>
+                    <div className='flex justify-between'>
+                      <span className='text-gray-600'>Borrow Value:</span>
+                      <span className='font-medium text-gray-900'>
+                        {formatUSDValue(
+                          getTotalUSDValue(
+                            borrowAssets
+                              .filter(asset => asset.selected && asset.amount && parseFloat(asset.amount) > 0)
+                              .map(asset => ({ symbol: asset.symbol, amount: asset.amount })),
+                          ),
+                        )}
+                      </span>
+                    </div>
+                  </div>
+                  <div className='flex justify-between pt-2 border-t border-gray-200'>
                     <span className='text-gray-600'>Debt Address:</span>
                     <span className='font-mono text-sm text-gray-900'>
                       {typeof predictedAddress === 'string'

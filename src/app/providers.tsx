@@ -5,7 +5,7 @@ import { mainnet, sepolia } from '@reown/appkit/networks';
 import { createAppKit } from '@reown/appkit/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useEffect, type ReactNode } from 'react';
-import { cookieToInitialState, WagmiProvider, type Config } from 'wagmi';
+import { WagmiProvider, cookieToInitialState, type Config } from 'wagmi';
 
 // Set up queryClient
 const queryClient = new QueryClient({

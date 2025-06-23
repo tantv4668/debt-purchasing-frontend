@@ -3,6 +3,7 @@
 // AppKit button will be used instead
 import Link from 'next/link';
 import { useAccount } from 'wagmi';
+import DebugPrices from '../../components/DebugPrices';
 
 export default function DashboardPage() {
   const { isConnected, address } = useAccount();
@@ -32,6 +33,9 @@ export default function DashboardPage() {
             Welcome back, {address?.slice(0, 6)}...{address?.slice(-4)}
           </p>
         </div>
+
+        {/* Debug Panel - only show in development */}
+        {process.env.NODE_ENV === 'development' && <DebugPrices />}
 
         {/* Stats Grid */}
         <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8'>

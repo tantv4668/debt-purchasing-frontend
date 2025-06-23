@@ -4,10 +4,126 @@ import { useState } from 'react';
 import { useAccount } from 'wagmi';
 import CreateDebtModal from '../../components/CreateDebtModal';
 import CreateSellOrderModal from '../../components/CreateSellOrderModal';
-import { formatHealthFactor, useUserDebtPositions, useUserPositionSummary } from '../../lib/hooks/useDebtPositions';
+import Tooltip from '../../components/Tooltip';
+import { useUserDebtPositions, useUserPositionSummary } from '../../lib/hooks/useDebtPositions';
+import { formatHealthFactor, useHealthFactor } from '../../lib/hooks/useHealthFactor';
+import { useLiquidationThresholds } from '../../lib/hooks/useLiquidationThresholds';
+import { usePriceTokens } from '../../lib/hooks/usePriceTokens';
 import { useOrderActions, useUserOrders, useUserOrdersSummary } from '../../lib/hooks/useUserOrders';
 import { UserSellOrder } from '../../lib/types';
 import { formatTimeRemaining, truncateAddress } from '../../lib/utils';
+
+// Component to calculate and display health factor for a single position
+function PositionHealthFactor({ position }: { position: any }) {
+  const healthFactorData = useHealthFactor(position.collaterals, position.debts);
+
+  return (
+    <div>
+      <h4 className='text-sm font-medium text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2'>
+        Health Factor
+        <Tooltip
+          content='Health Factor measures position safety. HF = (Collateral Value × Liquidation Thresholds) ÷ Debt Value. Values below 1.0 risk liquidation.'
+          maxWidth='xl'
+        >
+          <svg
+            className='w-4 h-4 text-gray-500 dark:text-gray-400 cursor-help'
+            fill='currentColor'
+            viewBox='0 0 20 20'
+            xmlns='http://www.w3.org/2000/svg'
+          >
+            <path
+              fillRule='evenodd'
+              d='M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z'
+              clipRule='evenodd'
+            />
+          </svg>
+        </Tooltip>
+      </h4>
+      {healthFactorData.isLoading ? (
+        <div className='text-gray-400'>Loading...</div>
+      ) : healthFactorData.error ? (
+        <div className='text-red-500 text-sm'>Error calculating HF</div>
+      ) : (
+        <>
+          <div className={`text-2xl font-bold mb-1 ${healthFactorData.color} flex items-center gap-2`}>
+            {formatHealthFactor(healthFactorData.healthFactor)}
+            <Tooltip
+              content={`Current Health Factor: ${formatHealthFactor(
+                healthFactorData.healthFactor,
+              )}. Collateral: $${healthFactorData.totalCollateralValue.toFixed(
+                2,
+              )}, Debt: $${healthFactorData.totalBorrowedValue.toFixed(2)}`}
+              maxWidth='lg'
+            >
+              <svg
+                className='w-4 h-4 text-gray-500 dark:text-gray-400 cursor-help'
+                fill='currentColor'
+                viewBox='0 0 20 20'
+                xmlns='http://www.w3.org/2000/svg'
+              >
+                <path
+                  fillRule='evenodd'
+                  d='M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z'
+                  clipRule='evenodd'
+                />
+              </svg>
+            </Tooltip>
+          </div>
+          <div className='text-xs text-gray-500 dark:text-gray-400 flex items-center gap-2'>
+            {healthFactorData.label}
+            <Tooltip
+              content={`${healthFactorData.label}: ${
+                healthFactorData.healthFactor >= 2
+                  ? 'Very safe position'
+                  : healthFactorData.healthFactor >= 1.5
+                  ? 'Moderately safe position'
+                  : healthFactorData.healthFactor >= 1.1
+                  ? 'Risky position, monitor closely'
+                  : 'Critical - risk of liquidation'
+              }`}
+              maxWidth='lg'
+            >
+              <svg
+                className='w-3 h-3 text-gray-500 dark:text-gray-400 cursor-help'
+                fill='currentColor'
+                viewBox='0 0 20 20'
+                xmlns='http://www.w3.org/2000/svg'
+              >
+                <path
+                  fillRule='evenodd'
+                  d='M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z'
+                  clipRule='evenodd'
+                />
+              </svg>
+            </Tooltip>
+          </div>
+          <div className='text-xs text-gray-400 mt-1 flex items-center gap-2'>
+            LT: {(healthFactorData.weightedAvgLiquidationThreshold * 100).toFixed(1)}%
+            <Tooltip
+              content={`Liquidation Threshold: ${(healthFactorData.weightedAvgLiquidationThreshold * 100).toFixed(
+                1,
+              )}%. This is the weighted average percentage of collateral value that counts toward your health factor. Higher LT = safer assets.`}
+              maxWidth='2xl'
+            >
+              <svg
+                className='w-3 h-3 text-gray-500 dark:text-gray-400 cursor-help'
+                fill='currentColor'
+                viewBox='0 0 20 20'
+                xmlns='http://www.w3.org/2000/svg'
+              >
+                <path
+                  fillRule='evenodd'
+                  d='M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z'
+                  clipRule='evenodd'
+                />
+              </svg>
+            </Tooltip>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 
 export default function PositionsPage() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -21,18 +137,11 @@ export default function PositionsPage() {
   const { cancelOrder } = useOrderActions();
   const positionSummary = useUserPositionSummary();
   const ordersSummary = useUserOrdersSummary();
+  const { calculateUSDValueFromBigInt, formatUSDValue, isLoading: pricesLoading } = usePriceTokens();
+  const { isLoading: thresholdsLoading, error: thresholdsError } = useLiquidationThresholds();
 
-  // Debug logging
-  console.log('Positions Debug:', {
-    address,
-    positionsCount: positions?.length || 0,
-    positions: positions?.slice(0, 2), // Log first 2 positions
-    isLoading: positionsLoading,
-    error: positionsError,
-  });
-
-  const isLoading = positionsLoading || ordersLoading;
-  const error = positionsError || ordersError;
+  const isLoading = positionsLoading || ordersLoading || pricesLoading || thresholdsLoading;
+  const error = positionsError || ordersError || thresholdsError;
 
   const handleCreateSellOrder = (position: any) => {
     setSelectedPositionForOrder(position);
@@ -61,6 +170,13 @@ export default function PositionsPage() {
         {status.charAt(0).toUpperCase() + status.slice(1)}
       </span>
     );
+  };
+
+  const calculateTotalValue = (assets: any[]) => {
+    return assets.reduce((total, asset) => {
+      const usdValue = calculateUSDValueFromBigInt(asset.balance, asset.symbol, asset.decimals);
+      return total + usdValue;
+    }, 0);
   };
 
   if (!isConnected) {
@@ -123,6 +239,13 @@ export default function PositionsPage() {
             Create Position
           </button>
         </div>
+
+        {/* Price Status */}
+        {pricesLoading && (
+          <div className='bg-blue-50 border border-blue-200 rounded-lg p-3 mb-6'>
+            <span className='text-sm text-blue-800'>🔄 Loading price data...</span>
+          </div>
+        )}
 
         {/* Combined Summary Cards */}
         <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8'>
@@ -331,45 +454,43 @@ export default function PositionsPage() {
                 ) : (
                   <div className='space-y-6'>
                     {positions.map((position, index) => {
-                      const healthFactor = formatHealthFactor(position.healthFactor);
                       const positionOrders = orders.filter(
                         order => order.debtAddress.toLowerCase() === position.address.toLowerCase(),
                       );
+                      const collateralValue = calculateTotalValue(position.collaterals);
+                      const debtValue = calculateTotalValue(position.debts);
 
                       return (
-                        <div key={index} className='bg-gray-50 rounded-xl p-6 border border-gray-100'>
+                        <div
+                          key={index}
+                          className='bg-gray-50 dark:bg-gray-800 rounded-xl p-6 border border-gray-100 dark:border-gray-700'
+                        >
                           <div className='flex justify-between items-start mb-4'>
                             <div>
-                              <h3 className='text-lg font-semibold text-gray-900 mb-1'>Position #{index + 1}</h3>
-                              <p className='text-sm text-gray-600 font-mono'>{truncateAddress(position.address)}</p>
+                              <h3 className='text-lg font-semibold text-gray-900 dark:text-white mb-1'>
+                                Position #{index + 1}
+                              </h3>
+                              <p className='text-sm text-gray-600 dark:text-gray-400 font-mono'>
+                                {truncateAddress(position.address)}
+                              </p>
                               {positionOrders.length > 0 && (
                                 <div className='mt-2'>
-                                  <span className='text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full'>
+                                  <span className='text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 px-2 py-1 rounded-full'>
                                     {positionOrders.length} active order{positionOrders.length > 1 ? 's' : ''}
                                   </span>
                                 </div>
                               )}
                             </div>
-                            <div
-                              className={`px-3 py-1 rounded-full text-sm font-medium ${
-                                healthFactor.status === 'safe'
-                                  ? 'bg-green-100 text-green-800'
-                                  : healthFactor.status === 'warning'
-                                  ? 'bg-yellow-100 text-yellow-800'
-                                  : healthFactor.status === 'danger'
-                                  ? 'bg-red-100 text-red-800'
-                                  : 'bg-gray-100 text-gray-800'
-                              }`}
-                            >
-                              {healthFactor.label}
+                            <div className='px-3 py-1 rounded-full text-sm font-medium bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200'>
+                              Position
                             </div>
                           </div>
 
                           <div className='grid grid-cols-1 md:grid-cols-3 gap-6 mb-6'>
                             {/* Collateral */}
-                            <div>
+                            <div className='flex flex-col'>
                               <h4 className='text-sm font-medium text-gray-700 dark:text-gray-300 mb-3'>Collateral</h4>
-                              <div className='space-y-2'>
+                              <div className='space-y-2 flex-1 flex flex-col justify-end'>
                                 {position.collaterals.map((collateral, idx) => (
                                   <div key={idx} className='flex justify-between items-center'>
                                     <span className='text-sm text-gray-600 dark:text-gray-400'>
@@ -380,18 +501,30 @@ export default function PositionsPage() {
                                         {collateral.balanceFormatted}
                                       </div>
                                       <div className='text-xs text-gray-500 dark:text-gray-400'>
-                                        ${collateral.valueInUSD.toLocaleString()}
+                                        {formatUSDValue(
+                                          calculateUSDValueFromBigInt(
+                                            collateral.balance,
+                                            collateral.symbol,
+                                            collateral.decimals,
+                                          ),
+                                        )}
                                       </div>
                                     </div>
                                   </div>
                                 ))}
+                                <div className='pt-2 border-t border-gray-200 dark:border-gray-600 flex justify-between items-center'>
+                                  <span className='text-sm font-semibold text-gray-700 dark:text-gray-300'>Total</span>
+                                  <span className='text-sm font-bold text-green-600 dark:text-green-400'>
+                                    {formatUSDValue(collateralValue)}
+                                  </span>
+                                </div>
                               </div>
                             </div>
 
                             {/* Debt */}
-                            <div>
+                            <div className='flex flex-col'>
                               <h4 className='text-sm font-medium text-gray-700 dark:text-gray-300 mb-3'>Debt</h4>
-                              <div className='space-y-2'>
+                              <div className='space-y-2 flex-1 flex flex-col justify-end'>
                                 {position.debts.map((debt, idx) => (
                                   <div key={idx} className='flex justify-between items-center'>
                                     <span className='text-sm text-gray-600 dark:text-gray-400'>{debt.symbol}</span>
@@ -400,30 +533,30 @@ export default function PositionsPage() {
                                         {debt.balanceFormatted}
                                       </div>
                                       <div className='text-xs text-gray-500 dark:text-gray-400'>
-                                        ${debt.valueInUSD.toLocaleString()}
+                                        {formatUSDValue(
+                                          calculateUSDValueFromBigInt(debt.balance, debt.symbol, debt.decimals),
+                                        )}
                                       </div>
                                     </div>
                                   </div>
                                 ))}
+                                <div className='pt-2 border-t border-gray-200 dark:border-gray-600 flex justify-between items-center'>
+                                  <span className='text-sm font-semibold text-gray-700 dark:text-gray-300'>Total</span>
+                                  <span className='text-sm font-bold text-red-600 dark:text-red-400'>
+                                    {formatUSDValue(debtValue)}
+                                  </span>
+                                </div>
                               </div>
                             </div>
 
                             {/* Health Factor */}
                             <div>
-                              <h4 className='text-sm font-medium text-gray-700 dark:text-gray-300 mb-3'>
-                                Health Factor
-                              </h4>
-                              <div className='text-2xl font-bold mb-1' style={{ color: healthFactor.color }}>
-                                {healthFactor.value.toFixed(2)}
-                              </div>
-                              <div className='text-xs text-gray-500 dark:text-gray-400'>
-                                {healthFactor.value > 1 ? 'Safe' : 'At Risk'}
-                              </div>
+                              <PositionHealthFactor position={position} />
                             </div>
                           </div>
 
                           {/* Actions */}
-                          <div className='pt-4 border-t border-gray-200'>
+                          <div className='pt-4 border-t border-gray-200 dark:border-gray-600'>
                             <div className='flex space-x-3'>
                               <button
                                 onClick={() => handleCreateSellOrder(position)}
