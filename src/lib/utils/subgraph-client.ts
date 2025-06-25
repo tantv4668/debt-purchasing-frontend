@@ -45,7 +45,10 @@ export class SubgraphClient {
       });
       if (owner) params.set('owner', owner);
 
-      const response = await fetch(`${this.backendUrl}/positions?${params}`, {
+      const url = `${this.backendUrl}/positions?${params}`;
+      logger.info(`Fetching positions from: ${url}`);
+
+      const response = await fetch(url, {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' },
         signal: AbortSignal.timeout(BACKEND_API_CONFIG.TIMEOUT),
@@ -56,6 +59,9 @@ export class SubgraphClient {
       }
 
       const result = await response.json();
+      logger.info(
+        `Backend returned ${result.data?.positions?.length || 0} positions, total: ${result.data?.total || 0}`,
+      );
       return result.success ? result.data : null;
     } catch (error) {
       logger.error('Failed to get cached positions:', error);

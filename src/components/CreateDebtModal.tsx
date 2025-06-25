@@ -14,11 +14,12 @@ import type { CreatePositionParams, TokenSymbol } from '../lib/types/debt-positi
 interface CreateDebtModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onPositionCreated?: () => void;
 }
 
 type Step = 'select-supply' | 'select-borrow' | 'review' | 'pending' | 'success';
 
-export default function CreateDebtModal({ isOpen, onClose }: CreateDebtModalProps) {
+export default function CreateDebtModal({ isOpen, onClose, onPositionCreated }: CreateDebtModalProps) {
   const { address } = useAccount();
   const { tokenBalances } = useTokenBalances();
   const { predictedAddress } = usePredictDebtAddress();
@@ -38,11 +39,12 @@ export default function CreateDebtModal({ isOpen, onClose }: CreateDebtModalProp
   const [step, setStep] = useState<Step>('select-supply');
   const [isApproving, setIsApproving] = useState(false);
   const [approvedTokens, setApprovedTokens] = useState<Set<string>>(new Set());
+  const [pendingApprovals, setPendingApprovals] = useState<Set<string>>(new Set());
   const [hasInitialized, setHasInitialized] = useState(false);
   const [transactionError, setTransactionError] = useState<string | null>(null);
   const [transactionHash, setTransactionHash] = useState<`0x${string}` | undefined>(undefined);
 
-  // Wait for transaction receipt
+  // Wait for transaction receipt (for position creation)
   const {
     data: receipt,
     isLoading: isWaitingForReceipt,
@@ -58,13 +60,15 @@ export default function CreateDebtModal({ isOpen, onClose }: CreateDebtModalProp
         clearCache();
         setStep('success');
         setTransactionHash(undefined);
+        // Trigger position refresh
+        onPositionCreated?.();
       } else {
         setTransactionError('Transaction failed on blockchain');
         setStep('review');
         setTransactionHash(undefined);
       }
     }
-  }, [receipt, step, clearCache]);
+  }, [receipt, step, clearCache, onPositionCreated]);
 
   // Handle transaction receipt error
   useEffect(() => {
@@ -119,6 +123,7 @@ export default function CreateDebtModal({ isOpen, onClose }: CreateDebtModalProp
   const resetModal = () => {
     setStep('select-supply');
     setApprovedTokens(new Set());
+    setPendingApprovals(new Set());
     setCollateralAssets(getDefaultCollateralAssets());
     setBorrowAssets(getDefaultBorrowAssets());
     clearCache();
@@ -208,11 +213,51 @@ export default function CreateDebtModal({ isOpen, onClose }: CreateDebtModalProp
 
       const { allApproved, approvalResults } = await multiTokenOps.approveMultipleTokens(tokensToApprove);
 
+      // Track pending approvals - wait for confirmation before marking as approved
       approvalResults.forEach(result => {
         if (result.success) {
-          setApprovedTokens(prev => new Set(prev).add(result.symbol));
+          setPendingApprovals(prev => new Set(prev).add(result.symbol));
         }
       });
+
+      // Start polling to check for confirmation
+      const pollForConfirmation = async (tokens: typeof tokensToApprove, attempts = 0) => {
+        if (attempts >= 20) {
+          // Max 60 seconds (20 attempts × 3 seconds)
+          console.warn('Approval confirmation timeout reached');
+          return;
+        }
+
+        try {
+          const recheck = await multiTokenOps.checkMultipleAllowances(tokens);
+          let allConfirmed = true;
+
+          recheck.forEach(check => {
+            if (!check.needsApproval) {
+              setApprovedTokens(prev => new Set(prev).add(check.symbol));
+              setPendingApprovals(prev => {
+                const newSet = new Set(prev);
+                newSet.delete(check.symbol);
+                return newSet;
+              });
+            } else {
+              allConfirmed = false;
+            }
+          });
+
+          // Continue polling if not all tokens are confirmed
+          if (!allConfirmed) {
+            setTimeout(() => pollForConfirmation(tokens, attempts + 1), 3000);
+          }
+        } catch (error) {
+          console.error('Error checking allowances:', error);
+          // Retry on error
+          setTimeout(() => pollForConfirmation(tokens, attempts + 1), 3000);
+        }
+      };
+
+      // Start polling after initial delay
+      setTimeout(() => pollForConfirmation(tokensToApprove), 2000);
 
       // Check for tokens that already had sufficient allowance
       const allowanceCheck = await multiTokenOps.checkMultipleAllowances(tokensToApprove);
@@ -836,14 +881,17 @@ export default function CreateDebtModal({ isOpen, onClose }: CreateDebtModalProp
                       asset => asset.selected && asset.amount && parseFloat(asset.amount) > 0,
                     );
                     const allApproved = selectedCollaterals.every(asset => approvedTokens.has(asset.symbol));
+                    const hasPendingApprovals = selectedCollaterals.some(asset => pendingApprovals.has(asset.symbol));
 
                     return (
                       <button
                         onClick={handleApprove}
-                        disabled={isApproving || allApproved}
+                        disabled={isApproving || allApproved || hasPendingApprovals}
                         className={`w-full py-3 rounded-lg font-medium transition-colors ${
                           allApproved
                             ? 'bg-green-600 text-white cursor-default'
+                            : hasPendingApprovals
+                            ? 'bg-yellow-600 text-white cursor-default'
                             : 'bg-gray-600 text-white hover:bg-gray-700 disabled:opacity-50'
                         }`}
                       >
@@ -858,8 +906,16 @@ export default function CreateDebtModal({ isOpen, onClose }: CreateDebtModalProp
                             </svg>
                             <span>✅ All Assets Approved</span>
                           </div>
+                        ) : hasPendingApprovals ? (
+                          <div className='flex items-center justify-center space-x-2'>
+                            <div className='animate-spin rounded-full h-4 w-4 border-b-2 border-white'></div>
+                            <span>⏳ Confirming Approvals...</span>
+                          </div>
                         ) : isApproving ? (
-                          'Approving...'
+                          <div className='flex items-center justify-center space-x-2'>
+                            <div className='animate-spin rounded-full h-4 w-4 border-b-2 border-white'></div>
+                            <span>Approving...</span>
+                          </div>
                         ) : (
                           '1. Approve Selected Assets'
                         )}

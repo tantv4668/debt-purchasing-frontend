@@ -10,10 +10,11 @@ import { logger } from '../utils/logger';
 import { getSubgraphClient, isSubgraphSupported } from '../utils/subgraph-client';
 
 // Hook to get user's debt positions from backend API
-export function useUserDebtPositions() {
+export function useUserDebtPositions(limit = 10, offset = 0) {
   const { address } = useAccount();
   const chainId = useChainId();
   const [positions, setPositions] = useState<DebtPosition[]>([]);
+  const [total, setTotal] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -34,16 +35,19 @@ export function useUserDebtPositions() {
     setError(null);
 
     try {
-      logger.info('Fetching user debt positions from backend API for:', address);
+      logger.info('Fetching user debt positions from backend API for:', address, `limit: ${limit}, offset: ${offset}`);
 
       const subgraphClient = getSubgraphClient(chainId);
-      const cachedData = await subgraphClient.getCachedPositions(address.toLowerCase());
+      const cachedData = await subgraphClient.getCachedPositions(address.toLowerCase(), limit, offset);
 
       if (!cachedData || !cachedData.positions || cachedData.positions.length === 0) {
         logger.info('No positions found for user');
         setPositions([]);
+        setTotal(cachedData?.total || 0);
         return;
       }
+
+      setTotal(cachedData.total || cachedData.positions.length);
 
       const formattedPositions: DebtPosition[] = cachedData.positions.map((position: any) => {
         // Get token info for collaterals and debts (fallback values since backend doesn't include full token data)
@@ -155,9 +159,30 @@ export function useUserDebtPositions() {
 
   useEffect(() => {
     fetchPositions();
-  }, [address, chainId]);
+  }, [address, chainId, limit, offset]);
 
-  return { positions, isLoading, error, refetch: fetchPositions };
+  const triggerCacheRefresh = async () => {
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/cache/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (!response.ok) throw new Error('Cache refresh failed');
+    } catch (error) {
+      console.warn('Cache refresh failed:', error);
+    }
+  };
+
+  const refetchWithCacheRefresh = async () => {
+    // Wait for subgraph to index the transaction (10 seconds)
+    setTimeout(async () => {
+      await triggerCacheRefresh();
+      // Wait a bit more for cache to update, then fetch
+      setTimeout(fetchPositions, 2000);
+    }, 10000);
+  };
+
+  return { positions, total, isLoading, error, refetch: fetchPositions, refetchWithCacheRefresh };
 }
 
 // Hook to predict debt address for new position
@@ -297,7 +322,7 @@ export function useTokenBalances() {
 
 // Hook to get user position summary
 export function useUserPositionSummary(): UserPositionSummary {
-  const { positions } = useUserDebtPositions();
+  const { positions } = useUserDebtPositions(100, 0); // Get all positions for summary
 
   return useMemo(() => {
     if (!positions.length) {

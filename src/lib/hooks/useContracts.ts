@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { Address } from 'viem';
 import { useAccount, useWriteContract } from 'wagmi';
 import { ChainId, getAaveRouterAddress } from '../contracts';
-import { AAVE_POOL_ABI, ERC20_ABI } from '../contracts/abis';
+import { AAVE_POOL_ABI, AAVE_ROUTER_ABI, ERC20_ABI } from '../contracts/abis';
 import { AAVE_POOL_EXTENSIONS, CONTRACT_DEFAULTS } from '../contracts/config';
 import { SUPPORTED_TOKENS } from '../contracts/tokens';
 import {
@@ -164,8 +164,75 @@ export function useMultiTokenOperations(chainId: ChainId = CONTRACT_DEFAULTS.CHA
   }, [tokenOps]);
 }
 
+// Position Management Hook
+export function usePositionManagement(chainId: ChainId = CONTRACT_DEFAULTS.CHAIN_ID) {
+  const { address } = useAccount();
+  const { writeContractAsync } = useWriteContract();
+  const routerAddress = getAaveRouterAddress(chainId);
+
+  return useMemo(() => {
+    const supplyToPosition = async (debtAddress: Address, asset: Address, amount: bigint) => {
+      validateWalletConnection(address);
+
+      return writeContractAsync({
+        address: routerAddress,
+        abi: AAVE_ROUTER_ABI,
+        functionName: 'callSupply',
+        args: [debtAddress, asset, amount],
+      });
+    };
+
+    const borrowFromPosition = async (
+      debtAddress: Address,
+      asset: Address,
+      amount: bigint,
+      interestRateMode: number,
+      receiver: Address,
+    ) => {
+      validateWalletConnection(address);
+
+      return writeContractAsync({
+        address: routerAddress,
+        abi: AAVE_ROUTER_ABI,
+        functionName: 'callBorrow',
+        args: [debtAddress, asset, amount, interestRateMode, receiver],
+      });
+    };
+
+    const repayPosition = async (debtAddress: Address, asset: Address, amount: bigint, interestRateMode: number) => {
+      validateWalletConnection(address);
+
+      return writeContractAsync({
+        address: routerAddress,
+        abi: AAVE_ROUTER_ABI,
+        functionName: 'callRepay',
+        args: [debtAddress, asset, amount, interestRateMode],
+      });
+    };
+
+    const withdrawFromPosition = async (debtAddress: Address, asset: Address, amount: bigint, to: Address) => {
+      validateWalletConnection(address);
+
+      return writeContractAsync({
+        address: routerAddress,
+        abi: AAVE_ROUTER_ABI,
+        functionName: 'callWithdraw',
+        args: [debtAddress, asset, amount, to],
+      });
+    };
+
+    return {
+      supplyToPosition,
+      borrowFromPosition,
+      repayPosition,
+      withdrawFromPosition,
+    };
+  }, [address, chainId, routerAddress, writeContractAsync]);
+}
+
 export default {
   useContract,
   useTokenOperations,
   useMultiTokenOperations,
+  usePositionManagement,
 };
