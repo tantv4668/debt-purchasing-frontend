@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useAccount } from 'wagmi';
+import { useAccount, useChainId, useWalletClient } from 'wagmi';
 import CreateDebtModal from '../../components/CreateDebtModal';
 import CreateSellOrderModal from '../../components/CreateSellOrderModal';
 import ManagePositionModal from '../../components/ManagePositionModal';
@@ -11,8 +11,9 @@ import { formatHealthFactor, useHealthFactor } from '../../lib/hooks/useHealthFa
 import { useLiquidationThresholds } from '../../lib/hooks/useLiquidationThresholds';
 import { usePriceTokens } from '../../lib/hooks/usePriceTokens';
 import { useOrderActions, useUserOrders, useUserOrdersSummary } from '../../lib/hooks/useUserOrders';
-import { UserSellOrder } from '../../lib/types';
+import { CreateFullSellOrderParams, CreatePartialSellOrderParams, UserSellOrder } from '../../lib/types';
 import { formatTimeRemaining, truncateAddress } from '../../lib/utils';
+import { createOrderService } from '../../lib/utils/create-order';
 
 // Component to calculate and display health factor for a single position
 function PositionHealthFactor({ position }: { position: any }) {
@@ -137,6 +138,8 @@ export default function PositionsPage() {
   const [pageSize] = useState(5);
 
   const { address, isConnected } = useAccount();
+  const chainId = useChainId();
+  const { data: walletClient } = useWalletClient();
   const {
     positions,
     total,
@@ -170,6 +173,38 @@ export default function PositionsPage() {
       // Refresh orders list
     } catch (error) {
       console.error('Failed to cancel order:', error);
+    }
+  };
+
+  // Real order creation implementation
+  const handleOrderCreation = async (
+    params: CreateFullSellOrderParams | CreatePartialSellOrderParams,
+  ): Promise<void> => {
+    if (!walletClient || !address) {
+      throw new Error('Wallet not connected');
+    }
+
+    const orderServiceInstance = createOrderService({
+      chainId,
+      walletClient,
+      seller: address,
+    });
+
+    try {
+      if ('equityPercentage' in params) {
+        // This is a full sell order
+        const result = await orderServiceInstance.createFullSellOrder(params as CreateFullSellOrderParams);
+        console.log('Full sell order created:', result);
+      } else {
+        // This is a partial sell order
+        const result = await orderServiceInstance.createPartialSellOrder(params as CreatePartialSellOrderParams);
+        console.log('Partial sell order created:', result);
+      }
+      // Refresh orders list after successful creation
+      // The useUserOrders hook will automatically refetch
+    } catch (error) {
+      console.error('Failed to create order:', error);
+      throw error;
     }
   };
 
@@ -848,10 +883,7 @@ export default function PositionsPage() {
             setSelectedPositionForOrder(null);
           }}
           debtPosition={selectedPositionForOrder}
-          onCreateOrder={async orderData => {
-            console.log('Creating order:', orderData);
-            // Implementation would create the order
-          }}
+          onCreateOrder={handleOrderCreation}
         />
       )}
       {selectedPositionForManage && (
