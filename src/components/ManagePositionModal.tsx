@@ -1,14 +1,16 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { parseUnits } from 'viem';
+import { useEffect, useMemo, useState } from 'react';
+import { formatUnits, parseUnits } from 'viem';
 import { useAccount, useWaitForTransactionReceipt } from 'wagmi';
 import { ChainId } from '../lib/contracts';
 import { SUPPORTED_TOKENS } from '../lib/contracts/tokens';
 import { useMultiTokenOperations, usePositionManagement } from '../lib/hooks/useContracts';
 import { useTokenBalances } from '../lib/hooks/useDebtPositions';
+import { formatHealthFactor, useHealthFactor } from '../lib/hooks/useHealthFactor';
 import { usePriceTokens } from '../lib/hooks/usePriceTokens';
 import type { TokenSymbol } from '../lib/types/debt-position';
+import Tooltip from './Tooltip';
 
 interface ManagePositionModalProps {
   isOpen: boolean;
@@ -24,6 +26,362 @@ interface AssetSelection {
   amount: string;
   selected: boolean;
   interestRateMode?: 1 | 2; // For borrow operations
+}
+
+// Health Factor Estimator Component
+function HealthFactorEstimator({
+  position,
+  selectedAssets,
+  actionTab,
+  tokens,
+}: {
+  position: any;
+  selectedAssets: AssetSelection[];
+  actionTab: ActionTab;
+  tokens: any;
+}) {
+  const { calculateUSDValue } = usePriceTokens();
+  const currentHF = useHealthFactor(position?.collaterals || [], position?.debts || []);
+
+  // Calculate new collaterals and debts for estimation
+  const { newCollaterals, newDebts } = useMemo(() => {
+    if (!position || selectedAssets.length === 0) {
+      return { newCollaterals: position?.collaterals || [], newDebts: position?.debts || [] };
+    }
+
+    // Clone current position data
+    const newCollaterals = [...(position.collaterals || [])];
+    const newDebts = [...(position.debts || [])];
+
+    selectedAssets.forEach(asset => {
+      if (!asset.amount || parseFloat(asset.amount) <= 0) return;
+
+      const token = tokens[asset.symbol];
+      const amountBigInt = parseUnits(asset.amount, token.decimals);
+
+      switch (actionTab) {
+        case 'supply':
+          // Add to collateral
+          const existingCollateralIndex = newCollaterals.findIndex(c => c.symbol === asset.symbol);
+          if (existingCollateralIndex >= 0) {
+            newCollaterals[existingCollateralIndex] = {
+              ...newCollaterals[existingCollateralIndex],
+              balance: newCollaterals[existingCollateralIndex].balance + amountBigInt,
+            };
+          } else {
+            newCollaterals.push({
+              symbol: asset.symbol,
+              balance: amountBigInt,
+              decimals: token.decimals,
+            });
+          }
+          break;
+
+        case 'borrow':
+          // Add to debt
+          const existingDebtIndex = newDebts.findIndex(d => d.symbol === asset.symbol);
+          if (existingDebtIndex >= 0) {
+            newDebts[existingDebtIndex] = {
+              ...newDebts[existingDebtIndex],
+              balance: newDebts[existingDebtIndex].balance + amountBigInt,
+            };
+          } else {
+            newDebts.push({
+              symbol: asset.symbol,
+              balance: amountBigInt,
+              decimals: token.decimals,
+            });
+          }
+          break;
+
+        case 'repay':
+          // Reduce debt
+          const debtIndex = newDebts.findIndex(d => d.symbol === asset.symbol);
+          if (debtIndex >= 0) {
+            const newBalance = newDebts[debtIndex].balance - amountBigInt;
+            if (newBalance <= BigInt(0)) {
+              newDebts.splice(debtIndex, 1);
+            } else {
+              newDebts[debtIndex] = {
+                ...newDebts[debtIndex],
+                balance: newBalance,
+              };
+            }
+          }
+          break;
+
+        case 'withdraw':
+          // Reduce collateral
+          const collateralIndex = newCollaterals.findIndex(c => c.symbol === asset.symbol);
+          if (collateralIndex >= 0) {
+            const newBalance = newCollaterals[collateralIndex].balance - amountBigInt;
+            if (newBalance <= BigInt(0)) {
+              newCollaterals.splice(collateralIndex, 1);
+            } else {
+              newCollaterals[collateralIndex] = {
+                ...newCollaterals[collateralIndex],
+                balance: newBalance,
+              };
+            }
+          }
+          break;
+      }
+    });
+
+    return { newCollaterals, newDebts };
+  }, [position, selectedAssets, actionTab, tokens]);
+
+  // Calculate estimated HF using the new collaterals and debts
+  const estimatedHF = useHealthFactor(newCollaterals, newDebts);
+
+  const hfChange = estimatedHF.healthFactor - currentHF.healthFactor;
+  const isImproving = hfChange > 0;
+  const isWorsening = hfChange < 0;
+
+  return (
+    <div className='bg-gray-50 dark:bg-gray-700 rounded-lg p-4 mt-4'>
+      <h4 className='text-sm font-medium text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2'>
+        Health Factor Impact
+        <Tooltip
+          content='Estimated Health Factor after performing this action. HF below 1.0 risks liquidation.'
+          maxWidth='xl'
+        >
+          <svg className='w-4 h-4 text-gray-500 dark:text-gray-400 cursor-help' fill='currentColor' viewBox='0 0 20 20'>
+            <path
+              fillRule='evenodd'
+              d='M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z'
+              clipRule='evenodd'
+            />
+          </svg>
+        </Tooltip>
+      </h4>
+
+      <div className='grid grid-cols-2 gap-4'>
+        <div>
+          <div className='text-xs text-gray-500 dark:text-gray-400 mb-1'>Current</div>
+          <div className={`text-lg font-bold ${currentHF.color}`}>{formatHealthFactor(currentHF.healthFactor)}</div>
+          <div className='text-xs text-gray-500 dark:text-gray-400'>{currentHF.label}</div>
+        </div>
+
+        <div>
+          <div className='text-xs text-gray-500 dark:text-gray-400 mb-1'>After Action</div>
+          <div className={`text-lg font-bold ${estimatedHF.color} flex items-center gap-1`}>
+            {formatHealthFactor(estimatedHF.healthFactor)}
+            {selectedAssets.some(a => a.selected && a.amount && parseFloat(a.amount) > 0) && (
+              <span
+                className={`text-sm ${isImproving ? 'text-green-500' : isWorsening ? 'text-red-500' : 'text-gray-500'}`}
+              >
+                {isImproving ? '↗' : isWorsening ? '↘' : '→'}
+              </span>
+            )}
+          </div>
+          <div className='text-xs text-gray-500 dark:text-gray-400'>{estimatedHF.label}</div>
+        </div>
+      </div>
+
+      {estimatedHF.healthFactor < 1.1 && estimatedHF.healthFactor !== currentHF.healthFactor && (
+        <div className='mt-3 p-2 bg-red-100 dark:bg-red-900 border border-red-200 dark:border-red-700 rounded text-sm text-red-800 dark:text-red-200'>
+          ⚠️ Warning: This action will result in a low Health Factor. Consider the liquidation risk.
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Position Information Component
+function PositionInfo({ position, actionTab }: { position: any; actionTab: ActionTab }) {
+  const { calculateUSDValueFromBigInt, formatUSDValue } = usePriceTokens();
+
+  if (!position) return null;
+
+  const getRelevantAssets = () => {
+    switch (actionTab) {
+      case 'supply':
+      case 'withdraw':
+        return position.collaterals || [];
+      case 'borrow':
+        // Show both collateral (what can be borrowed against) and current debt
+        return {
+          collaterals: position.collaterals || [],
+          debts: (position.debts || []).filter((debt: any) => debt.balance > 0),
+        };
+      case 'repay':
+        return (position.debts || []).filter((debt: any) => debt.balance > 0);
+      default:
+        return [];
+    }
+  };
+
+  const assets = getRelevantAssets();
+  const hasNoDebt =
+    !position.debts ||
+    position.debts.length === 0 ||
+    position.debts.every((debt: any) => !debt.balance || debt.balance === 0);
+
+  const calculateTotalValue = (assetList: any[]) => {
+    return assetList.reduce((total, asset) => {
+      const value = calculateUSDValueFromBigInt(asset.balance, asset.symbol, asset.decimals);
+      return total + value;
+    }, 0);
+  };
+
+  return (
+    <div
+      className={`rounded-lg p-4 mb-4 ${
+        hasNoDebt && actionTab === 'repay'
+          ? 'bg-green-50 dark:bg-green-900 border border-green-200 dark:border-green-700'
+          : 'bg-blue-50 dark:bg-blue-900'
+      }`}
+    >
+      <h4
+        className={`text-sm font-medium mb-3 ${
+          hasNoDebt && actionTab === 'repay' ? 'text-green-800 dark:text-green-200' : 'text-blue-800 dark:text-blue-200'
+        }`}
+      >
+        Current Position{' '}
+        {actionTab === 'supply' || actionTab === 'withdraw'
+          ? 'Collateral'
+          : actionTab === 'repay'
+          ? 'Debt'
+          : 'Overview'}
+      </h4>
+
+      {actionTab === 'borrow' && typeof assets === 'object' && 'collaterals' in assets ? (
+        <div className='space-y-3'>
+          <div>
+            <div className='text-xs text-blue-700 dark:text-blue-300 mb-2'>Available Collateral</div>
+            {assets.collaterals.length > 0 ? (
+              <div className='space-y-1'>
+                {assets.collaterals.map((asset: any, index: number) => (
+                  <div key={index} className='flex justify-between text-sm'>
+                    <span className='text-blue-800 dark:text-blue-200'>
+                      {parseFloat(formatUnits(asset.balance, asset.decimals)).toLocaleString()} {asset.symbol}
+                    </span>
+                    <span className='text-blue-600 dark:text-blue-400'>
+                      {formatUSDValue(calculateUSDValueFromBigInt(asset.balance, asset.symbol, asset.decimals))}
+                    </span>
+                  </div>
+                ))}
+                <div className='border-t border-blue-200 dark:border-blue-700 pt-1 mt-2'>
+                  <div className='flex justify-between text-sm font-medium'>
+                    <span className='text-blue-800 dark:text-blue-200'>Total Collateral</span>
+                    <span className='text-blue-600 dark:text-blue-400'>
+                      {formatUSDValue(calculateTotalValue(assets.collaterals))}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className='text-blue-600 dark:text-blue-400 text-sm'>No collateral assets</div>
+            )}
+          </div>
+
+          <div>
+            <div className='text-xs text-blue-700 dark:text-blue-300 mb-2'>Current Debt</div>
+            {assets.debts.length > 0 ? (
+              <div className='space-y-1'>
+                {assets.debts.map((asset: any, index: number) => (
+                  <div key={index} className='flex justify-between text-sm'>
+                    <span className='text-blue-800 dark:text-blue-200'>
+                      {parseFloat(formatUnits(asset.balance, asset.decimals)).toLocaleString()} {asset.symbol}
+                    </span>
+                    <span className='text-blue-600 dark:text-blue-400'>
+                      {formatUSDValue(calculateUSDValueFromBigInt(asset.balance, asset.symbol, asset.decimals))}
+                    </span>
+                  </div>
+                ))}
+                <div className='border-t border-blue-200 dark:border-blue-700 pt-1 mt-2'>
+                  <div className='flex justify-between text-sm font-medium'>
+                    <span className='text-blue-800 dark:text-blue-200'>Total Debt</span>
+                    <span className='text-blue-600 dark:text-blue-400'>
+                      {formatUSDValue(calculateTotalValue(assets.debts))}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className='text-blue-600 dark:text-blue-400 text-sm'>No debt</div>
+            )}
+          </div>
+        </div>
+      ) : Array.isArray(assets) ? (
+        assets.length > 0 ? (
+          <div className='space-y-1'>
+            {assets.map((asset: any, index: number) => (
+              <div key={index} className='flex justify-between text-sm'>
+                <span
+                  className={
+                    hasNoDebt && actionTab === 'repay'
+                      ? 'text-green-800 dark:text-green-200'
+                      : 'text-blue-800 dark:text-blue-200'
+                  }
+                >
+                  {parseFloat(formatUnits(asset.balance, asset.decimals)).toLocaleString()} {asset.symbol}
+                </span>
+                <span
+                  className={
+                    hasNoDebt && actionTab === 'repay'
+                      ? 'text-green-600 dark:text-green-400'
+                      : 'text-blue-600 dark:text-blue-400'
+                  }
+                >
+                  {formatUSDValue(calculateUSDValueFromBigInt(asset.balance, asset.symbol, asset.decimals))}
+                </span>
+              </div>
+            ))}
+            <div
+              className={`border-t pt-1 mt-2 ${
+                hasNoDebt && actionTab === 'repay'
+                  ? 'border-green-200 dark:border-green-700'
+                  : 'border-blue-200 dark:border-blue-700'
+              }`}
+            >
+              <div className='flex justify-between text-sm font-medium'>
+                <span
+                  className={
+                    hasNoDebt && actionTab === 'repay'
+                      ? 'text-green-800 dark:text-green-200'
+                      : 'text-blue-800 dark:text-blue-200'
+                  }
+                >
+                  Total
+                </span>
+                <span
+                  className={
+                    hasNoDebt && actionTab === 'repay'
+                      ? 'text-green-600 dark:text-green-400'
+                      : 'text-blue-600 dark:text-blue-400'
+                  }
+                >
+                  {formatUSDValue(calculateTotalValue(assets))}
+                </span>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div
+            className={`text-sm ${
+              hasNoDebt && actionTab === 'repay'
+                ? 'text-green-600 dark:text-green-400'
+                : 'text-blue-600 dark:text-blue-400'
+            }`}
+          >
+            {hasNoDebt && actionTab === 'repay' ? (
+              <div className='flex items-center space-x-2'>
+                <span className='text-2xl'>🎉</span>
+                <div>
+                  <div className='font-medium'>Congratulations! Your loan is fully repaid!</div>
+                  <div className='text-xs mt-1'>You have no outstanding debt on this position.</div>
+                </div>
+              </div>
+            ) : (
+              `No ${actionTab === 'supply' || actionTab === 'withdraw' ? 'collateral' : 'debt'} assets`
+            )}
+          </div>
+        )
+      ) : null}
+    </div>
+  );
 }
 
 export default function ManagePositionModal({
@@ -108,6 +466,27 @@ export default function ManagePositionModal({
     setPendingApprovals(new Set());
   }, [activeTab]);
 
+  // Auto-switch away from repay tab if no debt exists
+  useEffect(() => {
+    if (activeTab === 'repay' && position) {
+      const hasDebt =
+        position.debts && position.debts.length > 0 && position.debts.some((debt: any) => debt.balance > 0);
+      if (!hasDebt) {
+        setActiveTab('supply'); // Switch to supply tab as default
+      }
+    }
+
+    if (activeTab === 'withdraw' && position) {
+      const hasCollateral =
+        position.collaterals &&
+        position.collaterals.length > 0 &&
+        position.collaterals.some((collateral: any) => collateral.balance > 0);
+      if (!hasCollateral) {
+        setActiveTab('supply'); // Switch to supply tab as default
+      }
+    }
+  }, [position, activeTab]);
+
   // Get tokens configuration for current chain
   const getTokenConfig = (chainId: ChainId) => {
     const tokenConfig: Partial<
@@ -177,7 +556,9 @@ export default function ManagePositionModal({
   };
 
   const isAssetInPosition = (symbol: string, assetType: 'collateral' | 'debt') => {
-    return getPositionAssetSymbols(assetType).includes(symbol);
+    const assetList = assetType === 'collateral' ? position?.collaterals : position?.debts;
+    const asset = assetList?.find((asset: any) => asset.symbol === symbol);
+    return asset && asset.balance > 0;
   };
 
   const handleApprove = async () => {
@@ -312,43 +693,46 @@ export default function ManagePositionModal({
   const getTabDescription = () => {
     switch (activeTab) {
       case 'supply':
-        return 'Add more collateral to your position to improve your health factor and reduce liquidation risk.';
+        return 'Add more collateral to your position to improve your Health Factor and borrowing capacity.';
       case 'borrow':
-        return 'Borrow additional assets against your existing collateral if your position is safe.';
+        return 'Borrow additional assets against your collateral. Monitor your Health Factor to avoid liquidation.';
       case 'repay':
-        return 'Pay back existing debt to improve your health factor and reduce interest payments.';
+        return 'Repay part or all of your debt to improve your Health Factor and reduce liquidation risk.';
       case 'withdraw':
-        return 'Remove collateral from your position if your health factor allows it.';
+        return 'Withdraw collateral from your position. Ensure your Health Factor remains above 1.0.';
       default:
         return '';
     }
   };
 
   const getAssetFilterForTab = () => {
-    if (activeTab === 'repay') {
-      // For repay, only show assets that are currently borrowed
-      return assets.filter(asset => isAssetInPosition(asset.symbol, 'debt'));
-    } else if (activeTab === 'withdraw') {
-      // For withdraw, only show assets that are currently collateral
-      return assets.filter(asset => isAssetInPosition(asset.symbol, 'collateral'));
+    switch (activeTab) {
+      case 'supply':
+        return assets; // All assets can be supplied
+      case 'borrow':
+        return assets; // All assets can be borrowed
+      case 'repay':
+        // Only assets that are currently debt
+        return assets.filter(asset => isAssetInPosition(asset.symbol, 'debt'));
+      case 'withdraw':
+        // Only assets that are currently collateral
+        return assets.filter(asset => isAssetInPosition(asset.symbol, 'collateral'));
+      default:
+        return assets;
     }
-    // For supply and borrow, show all assets
-    return assets;
   };
 
   const getActionButtonText = () => {
     const selectedCount = getSelectedAssets().length;
-    const totalValue = getTotalUSDValue(getSelectedAssets().map(a => ({ symbol: a.symbol, amount: a.amount })));
+    if (selectedCount === 0) return `Select assets to ${activeTab}`;
 
-    const actionText = activeTab.charAt(0).toUpperCase() + activeTab.slice(1);
+    const totalValue = getSelectedAssets().reduce((sum, asset) => {
+      return sum + calculateUSDValue(asset.amount, asset.symbol);
+    }, 0);
 
-    if (selectedCount === 0) {
-      return `Select Assets to ${actionText}`;
-    }
-
-    return `${actionText} ${selectedCount} Asset${selectedCount > 1 ? 's' : ''}${
-      totalValue > 0 ? ` • ${formatUSDValue(totalValue)}` : ''
-    }`;
+    return `${activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} ${selectedCount} asset${
+      selectedCount > 1 ? 's' : ''
+    }${totalValue > 0 ? ` • ${formatUSDValue(totalValue)}` : ''}`;
   };
 
   const needsApproval = () => {
@@ -366,6 +750,34 @@ export default function ManagePositionModal({
     return true;
   };
 
+  // Get max amounts for validation
+  const getMaxAmount = (symbol: string) => {
+    if (activeTab === 'repay') {
+      // Max is current debt amount
+      const debt = position?.debts?.find((d: any) => d.symbol === symbol);
+      if (debt) {
+        return parseFloat(formatUnits(debt.balance, debt.decimals));
+      }
+    } else if (activeTab === 'withdraw') {
+      // Max is current collateral amount (with some safety margin for HF)
+      const collateral = position?.collaterals?.find((c: any) => c.symbol === symbol);
+      if (collateral) {
+        return parseFloat(formatUnits(collateral.balance, collateral.decimals));
+      }
+    }
+    return undefined;
+  };
+
+  const validateAmount = (symbol: string, amount: string) => {
+    const maxAmount = getMaxAmount(symbol);
+    if (maxAmount !== undefined && parseFloat(amount) > maxAmount) {
+      return `Maximum ${activeTab === 'repay' ? 'repayable' : 'withdrawable'} amount is ${maxAmount.toFixed(
+        4,
+      )} ${symbol}`;
+    }
+    return null;
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -373,7 +785,7 @@ export default function ManagePositionModal({
       <div className='flex min-h-screen items-center justify-center p-4'>
         <div className='fixed inset-0 bg-black bg-opacity-50' onClick={handleClose} />
 
-        <div className='relative w-full max-w-3xl bg-white dark:bg-gray-800 rounded-2xl shadow-xl'>
+        <div className='relative w-full max-w-4xl bg-white dark:bg-gray-800 rounded-2xl shadow-xl'>
           {/* Header */}
           <div className='flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-600'>
             <div>
@@ -399,25 +811,48 @@ export default function ManagePositionModal({
           {/* Tab Navigation */}
           <div className='px-6 py-4 border-b border-gray-200 dark:border-gray-600'>
             <div className='flex space-x-1'>
-              {(['supply', 'borrow', 'repay', 'withdraw'] as ActionTab[]).map(tab => (
-                <button
-                  key={tab}
-                  onClick={() => setActiveTab(tab)}
-                  className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-                    activeTab === tab
-                      ? 'bg-blue-600 text-white'
-                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700'
-                  }`}
-                >
-                  {tab.charAt(0).toUpperCase() + tab.slice(1)}
-                </button>
-              ))}
+              {(['supply', 'borrow', 'repay', 'withdraw'] as ActionTab[])
+                .filter(tab => {
+                  // Hide repay tab if there's no debt
+                  if (tab === 'repay') {
+                    const hasDebt =
+                      position?.debts &&
+                      position.debts.length > 0 &&
+                      position.debts.some((debt: any) => debt.balance > 0);
+                    return hasDebt;
+                  }
+                  // Hide withdraw tab if there's no collateral
+                  if (tab === 'withdraw') {
+                    const hasCollateral =
+                      position?.collaterals &&
+                      position.collaterals.length > 0 &&
+                      position.collaterals.some((collateral: any) => collateral.balance > 0);
+                    return hasCollateral;
+                  }
+                  return true;
+                })
+                .map(tab => (
+                  <button
+                    key={tab}
+                    onClick={() => setActiveTab(tab)}
+                    className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                      activeTab === tab
+                        ? 'bg-blue-600 text-white'
+                        : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700'
+                    }`}
+                  >
+                    {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                  </button>
+                ))}
             </div>
             <p className='text-sm text-gray-600 dark:text-gray-400 mt-3'>{getTabDescription()}</p>
           </div>
 
           {/* Content */}
           <div className='p-6'>
+            {/* Position Information */}
+            <PositionInfo position={position} actionTab={activeTab} />
+
             {/* Price Status Indicator */}
             {pricesError && (
               <div className='bg-yellow-50 dark:bg-yellow-900 border border-yellow-200 dark:border-yellow-700 rounded-lg p-3 mb-6'>
@@ -448,6 +883,8 @@ export default function ManagePositionModal({
                 {getAssetFilterForTab().map(asset => {
                   const token = tokens[asset.symbol];
                   const isInPosition = isAssetInPosition(asset.symbol, activeTab === 'repay' ? 'debt' : 'collateral');
+                  const maxAmount = getMaxAmount(asset.symbol);
+                  const validationError = asset.amount ? validateAmount(asset.symbol, asset.amount) : null;
 
                   return (
                     <div
@@ -506,6 +943,11 @@ export default function ManagePositionModal({
                                 tokenBalances[asset.symbol as keyof typeof tokenBalances]?.formatted || '0',
                               ).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </div>
+                            {maxAmount !== undefined && (
+                              <div className='text-xs text-blue-600 dark:text-blue-400 font-medium'>
+                                Max {activeTab === 'repay' ? 'repayable' : 'withdrawable'}: {maxAmount.toFixed(4)}
+                              </div>
+                            )}
                             <div className='text-xs text-gray-500 dark:text-gray-500'>
                               {(() => {
                                 const price = getPriceBySymbol(asset.symbol);
@@ -527,12 +969,34 @@ export default function ManagePositionModal({
                                     prev.map(a => (a.symbol === asset.symbol ? { ...a, amount: e.target.value } : a)),
                                   );
                                 }}
-                                className='w-24 px-3 py-2 border-2 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 dark:text-white dark:bg-gray-800 font-medium text-sm'
+                                max={maxAmount}
+                                className={`w-24 px-3 py-2 border-2 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 dark:text-white dark:bg-gray-800 font-medium text-sm ${
+                                  validationError
+                                    ? 'border-red-300 dark:border-red-600'
+                                    : 'border-gray-300 dark:border-gray-600'
+                                }`}
                               />
-                              {asset.amount && parseFloat(asset.amount) > 0 && (
+                              {maxAmount !== undefined && (
+                                <button
+                                  onClick={() => {
+                                    setAssets(prev =>
+                                      prev.map(a =>
+                                        a.symbol === asset.symbol ? { ...a, amount: maxAmount.toString() } : a,
+                                      ),
+                                    );
+                                  }}
+                                  className='text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 mt-1 block'
+                                >
+                                  Max
+                                </button>
+                              )}
+                              {asset.amount && parseFloat(asset.amount) > 0 && !validationError && (
                                 <div className='text-xs text-blue-600 dark:text-blue-400 mt-1 font-medium'>
                                   {formatUSDValue(calculateUSDValue(asset.amount, asset.symbol))}
                                 </div>
+                              )}
+                              {validationError && (
+                                <div className='text-xs text-red-600 dark:text-red-400 mt-1'>{validationError}</div>
                               )}
                             </div>
 
@@ -563,6 +1027,14 @@ export default function ManagePositionModal({
               </div>
             </div>
 
+            {/* Health Factor Estimation */}
+            <HealthFactorEstimator
+              position={position}
+              selectedAssets={getSelectedAssets()}
+              actionTab={activeTab}
+              tokens={tokens}
+            />
+
             {/* Error display */}
             {transactionError && (
               <div className='bg-red-50 dark:bg-red-900 border border-red-200 dark:border-red-700 rounded-lg p-4 mt-6'>
@@ -584,7 +1056,8 @@ export default function ManagePositionModal({
                   disabled={
                     isApproving ||
                     getSelectedAssets().every(asset => approvedTokens.has(asset.symbol)) ||
-                    getSelectedAssets().some(asset => pendingApprovals.has(asset.symbol))
+                    getSelectedAssets().some(asset => pendingApprovals.has(asset.symbol)) ||
+                    getSelectedAssets().some(asset => validateAmount(asset.symbol, asset.amount))
                   }
                   className={`w-full py-3 rounded-lg font-medium transition-colors ${
                     getSelectedAssets().every(asset => approvedTokens.has(asset.symbol))
@@ -603,36 +1076,36 @@ export default function ManagePositionModal({
                           clipRule='evenodd'
                         />
                       </svg>
-                      <span>✅ All Assets Approved</span>
+                      <span>Approved</span>
                     </div>
                   ) : getSelectedAssets().some(asset => pendingApprovals.has(asset.symbol)) ? (
                     <div className='flex items-center justify-center space-x-2'>
-                      <div className='animate-spin rounded-full h-4 w-4 border-b-2 border-white'></div>
-                      <span>⏳ Confirming Approvals...</span>
-                    </div>
-                  ) : isApproving ? (
-                    <div className='flex items-center justify-center space-x-2'>
-                      <div className='animate-spin rounded-full h-4 w-4 border-b-2 border-white'></div>
-                      <span>Approving...</span>
+                      <div className='animate-spin rounded-full h-5 w-5 border-b-2 border-white'></div>
+                      <span>Confirming Approval...</span>
                     </div>
                   ) : (
-                    '1. Approve Selected Assets'
+                    `Approve Token${getSelectedAssets().length > 1 ? 's' : ''}`
                   )}
                 </button>
               )}
 
               <button
                 onClick={handleExecuteAction}
-                disabled={isProcessing || !isReadyToExecute()}
-                className='w-full py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors'
+                disabled={
+                  !isReadyToExecute() ||
+                  isProcessing ||
+                  isWaitingForReceipt ||
+                  getSelectedAssets().some(asset => validateAmount(asset.symbol, asset.amount))
+                }
+                className='w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors'
               >
-                {isProcessing ? (
+                {isProcessing || isWaitingForReceipt ? (
                   <div className='flex items-center justify-center space-x-2'>
-                    <div className='animate-spin rounded-full h-4 w-4 border-b-2 border-white'></div>
-                    <span>Processing...</span>
+                    <div className='animate-spin rounded-full h-5 w-5 border-b-2 border-white'></div>
+                    <span>{isWaitingForReceipt ? 'Confirming...' : 'Processing...'}</span>
                   </div>
                 ) : (
-                  `${needsApproval() ? '2. ' : ''}${getActionButtonText()}`
+                  getActionButtonText()
                 )}
               </button>
             </div>
