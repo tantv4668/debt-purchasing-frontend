@@ -8,6 +8,12 @@ export interface CreateOrderRequest {
   partialSellOrder?: PartialSellOrderData;
 }
 
+export interface CancelOrderRequest {
+  seller: string;
+  signature: string;
+  message: string;
+}
+
 export interface FullSellOrderData {
   debt: string;
   debtNonce: number;
@@ -58,7 +64,8 @@ export interface OrderResponse {
 }
 
 // Configuration - Fixed port to match backend config (3002)
-const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3002';
+// Ensure we strip any trailing /api to prevent duplication
+const API_BASE_URL = (process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3002').replace(/\/api$/, '');
 
 class OrderApiService {
   private baseUrl: string;
@@ -243,6 +250,65 @@ class OrderApiService {
         );
       }
       throw error;
+    }
+  }
+
+  /**
+   * Cancel an order by ID
+   */
+  async cancelOrder(
+    orderId: string,
+    cancelRequest: CancelOrderRequest,
+  ): Promise<{ success: boolean; message?: string; error?: string }> {
+    const url = `${this.baseUrl}/api/orders/${orderId}/cancel`;
+    console.log('🔄 Attempting to cancel order:', { orderId, seller: cancelRequest.seller, url });
+    try {
+      const response = await fetch(url, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(cancelRequest),
+      });
+
+      console.log('📥 Cancel order response:', {
+        status: response.status,
+        statusText: response.statusText,
+        url: response.url,
+        ok: response.ok,
+      });
+
+      const data = await response.json();
+      console.log('📄 Cancel order response data:', data);
+
+      if (!response.ok) {
+        throw new Error(data.error || `HTTP error! status: ${response.status}`);
+      }
+
+      return {
+        success: data.success,
+        message: data.data?.message || 'Order cancelled successfully',
+      };
+    } catch (error) {
+      console.error('❌ Failed to cancel order:', error);
+      console.error('❌ Error details:', {
+        name: error instanceof Error ? error.name : 'Unknown',
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack?.split('\n').slice(0, 3) : 'No stack',
+      });
+
+      if (error instanceof Error && error.message.includes('Failed to fetch')) {
+        console.error('❌ Network connectivity issue detected');
+        console.error('❌ Please check:');
+        console.error('   1. Backend is running on', this.baseUrl);
+        console.error('   2. No CORS errors in browser console');
+        console.error('   3. Network connectivity is working');
+      }
+
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to cancel order',
+      };
     }
   }
 }

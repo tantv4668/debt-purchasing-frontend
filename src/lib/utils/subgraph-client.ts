@@ -3,7 +3,7 @@ import { logger } from './logger';
 
 // Backend API configuration
 const BACKEND_API_CONFIG = {
-  BASE_URL: process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3002/api',
+  BASE_URL: (process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3002').replace(/\/api$/, '') + '/api',
   TIMEOUT: 10000,
 };
 

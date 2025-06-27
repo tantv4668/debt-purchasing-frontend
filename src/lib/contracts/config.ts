@@ -58,7 +58,7 @@ export const POSITION_CONFIG = {
 
 // Backend API configuration
 export const BACKEND_API_CONFIG = {
-  BASE_URL: process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3002/api',
+  BASE_URL: (process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3002').replace(/\/api$/, '') + '/api',
   TIMEOUT: 10000,
   USE_CACHE: true,
 } as const;

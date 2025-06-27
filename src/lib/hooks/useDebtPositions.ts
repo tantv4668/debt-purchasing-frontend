@@ -140,8 +140,12 @@ export function useUserDebtPositions(limit = 10, offset = 0) {
           healthFactor: BigInt(Math.floor(healthFactorValue * 1e18)),
           collaterals,
           debts,
-          createdAt: new Date(position.createdAt).getTime(),
-          lastUpdated: new Date(position.updatedAt).getTime(),
+          createdAt: position.blockchainCreatedAt
+            ? new Date(position.blockchainCreatedAt).getTime()
+            : new Date(position.createdAt).getTime(), // Use blockchain time if available, fallback to MongoDB time
+          lastUpdated: position.blockchainUpdatedAt
+            ? new Date(position.blockchainUpdatedAt).getTime()
+            : new Date(position.updatedAt).getTime(),
         };
       });
 

@@ -188,7 +188,7 @@ export const ORDER_CONSTANTS = {
   BASIS_POINTS_PRECISION: 10000,
 
   // Minimum health factor for safety
-  MIN_SAFE_HEALTH_FACTOR: 1.5,
+  MIN_SAFE_HEALTH_FACTOR: 1.4,
 
   // Maximum order validity period (30 days)
   MAX_ORDER_VALIDITY_DAYS: 30,

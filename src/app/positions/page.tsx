@@ -147,7 +147,7 @@ export default function PositionsPage() {
     error: positionsError,
     refetchWithCacheRefresh,
   } = useUserDebtPositions(pageSize, (currentPage - 1) * pageSize);
-  const { orders, isLoading: ordersLoading, error: ordersError } = useUserOrders();
+  const { orders, isLoading: ordersLoading, error: ordersError, refetch: refetchOrders } = useUserOrders();
   const { cancelOrder } = useOrderActions();
   const positionSummary = useUserPositionSummary();
   const ordersSummary = useUserOrdersSummary();
@@ -171,8 +171,11 @@ export default function PositionsPage() {
     try {
       await cancelOrder(order.id);
       // Refresh orders list
+      await refetchOrders();
+      console.log('✅ Order cancelled and list refreshed');
     } catch (error) {
       console.error('Failed to cancel order:', error);
+      // You might want to show a toast notification here
     }
   };
 
@@ -510,6 +513,7 @@ export default function PositionsPage() {
                   </div>
                 ) : (
                   <div className='space-y-6'>
+                    {/* Positions are already sorted by blockchainCreatedAt from backend */}
                     {positions.map((position, index) => {
                       const positionOrders = orders.filter(
                         order => order.debtAddress.toLowerCase() === position.address.toLowerCase(),

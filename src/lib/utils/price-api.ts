@@ -2,7 +2,7 @@ import type { PriceToken, PriceTokensResponse } from '../hooks/usePriceTokens';
 
 // Frontend API route that proxies to backend
 const FRONTEND_API_BASE = ''; // Use relative path for frontend API routes
-const BACKEND_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3002';
+const BACKEND_BASE_URL = (process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3002').replace(/\/api$/, '');
 
 interface PriceApiResponse {
   success: boolean;

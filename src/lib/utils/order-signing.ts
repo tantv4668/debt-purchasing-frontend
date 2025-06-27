@@ -79,7 +79,7 @@ export async function signFullSellOrder(
     ]),
   );
 
-  // Sign the struct hash
+  // Use standard signMessage (backend will handle compatibility)
   const signature = await walletClient.signMessage({
     account,
     message: { raw: structHash },
@@ -142,7 +142,7 @@ export async function signPartialSellOrder(
     ),
   );
 
-  // Sign the struct hash
+  // Use standard signMessage (backend will handle compatibility)
   const signature = await walletClient.signMessage({
     account,
     message: { raw: structHash },
@@ -166,6 +166,25 @@ export async function getCurrentDebtNonce(debtAddress: string): Promise<number> 
   // TODO: Implement actual contract call to get current debt nonce
   // For now, return 0 as default
   return 0;
+}
+
+// Helper function to sign cancel order message
+export async function signCancelOrderMessage(
+  orderId: string,
+  walletClient: WalletClient,
+): Promise<{ message: string; signature: string }> {
+  const account = walletClient.account;
+  if (!account) {
+    throw new Error('Wallet account not found');
+  }
+
+  const message = `Cancel order: ${orderId}`;
+  const signature = await walletClient.signMessage({
+    account,
+    message,
+  });
+
+  return { message, signature };
 }
 
 // Export types for use in other files

@@ -3,15 +3,14 @@
 import {
   CreateFullSellOrderParams,
   CreatePartialSellOrderParams,
-  DebtPosition,
   OrderFormErrors,
   OrderType,
   TransactionStatus,
 } from '@/lib/types';
+import { DebtPosition } from '@/lib/types/debt-position';
 import {
   formatHealthFactor,
   formatUSD,
-  getTokenName,
   validateHealthFactorTrigger,
   validateOrderValidity,
   validatePercentOfEquity,
@@ -45,7 +44,7 @@ export default function CreateSellOrderModal({
   const [txStatus, setTxStatus] = useState<TransactionStatus>({ state: 'idle' });
 
   // Full order form state
-  const [triggerHealthFactor, setTriggerHealthFactor] = useState('1.5');
+  const [triggerHealthFactor, setTriggerHealthFactor] = useState('1.4');
   const [percentOfEquity, setPercentOfEquity] = useState('90');
   const [paymentToken, setPaymentToken] = useState<Address>(PAYMENT_TOKENS[0].address);
   const [validDays, setValidDays] = useState('7');
@@ -120,16 +119,15 @@ export default function CreateSellOrderModal({
     setTxStatus({ state: 'preparing' });
 
     try {
-      const validUntil = new Date();
-      validUntil.setDate(validUntil.getDate() + parseInt(validDays));
+      const validityPeriodHours = parseInt(validDays) * 24;
 
       if (orderType === 'full') {
         const params: CreateFullSellOrderParams = {
           debtAddress: debtPosition.address,
           triggerHealthFactor: parseFloat(triggerHealthFactor),
-          percentOfEquity: parseFloat(percentOfEquity),
+          equityPercentage: parseFloat(percentOfEquity),
           paymentToken,
-          validUntil,
+          validityPeriodHours,
         };
         await onCreateOrder(params);
       } else {
@@ -140,8 +138,8 @@ export default function CreateSellOrderModal({
           repayAmount,
           collateralTokens: selectedCollaterals,
           collateralPercentages: selectedCollaterals.map(addr => parseFloat(collateralPercentages[addr] || '0')),
-          bonus: parseFloat(bonus),
-          validUntil,
+          buyerBonus: parseFloat(bonus),
+          validityPeriodHours,
         };
         await onCreateOrder(params);
       }
@@ -181,11 +179,15 @@ export default function CreateSellOrderModal({
 
   return (
     <div className='fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4'>
-      <div className='bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto'>
-        <div className='p-6 border-b'>
+      <div className='bg-white dark:bg-gray-800 rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto'>
+        <div className='p-6 border-b border-gray-200 dark:border-gray-700'>
           <div className='flex justify-between items-center'>
-            <h2 className='text-2xl font-bold text-gray-900'>Create Sell Order</h2>
-            <button onClick={onClose} className='text-gray-400 hover:text-gray-600 text-2xl' disabled={isLoading}>
+            <h2 className='text-2xl font-bold text-gray-900 dark:text-white'>Create Sell Order</h2>
+            <button
+              onClick={onClose}
+              className='text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-2xl'
+              disabled={isLoading}
+            >
               ×
             </button>
           </div>
@@ -193,24 +195,28 @@ export default function CreateSellOrderModal({
 
         <form onSubmit={handleSubmit} className='p-6 space-y-6'>
           {/* Position Info */}
-          <div className='bg-gray-50 p-4 rounded-lg'>
-            <h3 className='font-semibold text-gray-900 mb-2'>Position Overview</h3>
+          <div className='bg-gray-50 dark:bg-gray-700 p-4 rounded-lg'>
+            <h3 className='font-semibold text-gray-900 dark:text-white mb-2'>Position Overview</h3>
             <div className='grid grid-cols-2 gap-4 text-sm'>
               <div>
-                <span className='text-gray-600'>Total Collateral:</span>
-                <span className='ml-2 font-medium'>{formatUSD(debtPosition.totalCollateralBase)}</span>
+                <span className='text-gray-600 dark:text-gray-300'>Total Collateral:</span>
+                <span className='ml-2 font-medium text-gray-900 dark:text-white'>
+                  {formatUSD(debtPosition.totalCollateralBase)}
+                </span>
               </div>
               <div>
-                <span className='text-gray-600'>Total Debt:</span>
-                <span className='ml-2 font-medium'>{formatUSD(debtPosition.totalDebtBase)}</span>
+                <span className='text-gray-600 dark:text-gray-300'>Total Debt:</span>
+                <span className='ml-2 font-medium text-gray-900 dark:text-white'>
+                  {formatUSD(debtPosition.totalDebtBase)}
+                </span>
               </div>
               <div>
-                <span className='text-gray-600'>Health Factor:</span>
+                <span className='text-gray-600 dark:text-gray-300'>Health Factor:</span>
                 <span
                   className={`ml-2 font-medium ${
                     currentHealthFactor >= 2
                       ? 'text-green-600'
-                      : currentHealthFactor >= 1.5
+                      : currentHealthFactor >= 1.4
                       ? 'text-yellow-600'
                       : 'text-red-600'
                   }`}
@@ -219,8 +225,8 @@ export default function CreateSellOrderModal({
                 </span>
               </div>
               <div>
-                <span className='text-gray-600'>Net Equity:</span>
-                <span className='ml-2 font-medium'>
+                <span className='text-gray-600 dark:text-gray-300'>Net Equity:</span>
+                <span className='ml-2 font-medium text-gray-900 dark:text-white'>
                   {formatUSD(debtPosition.totalCollateralBase - debtPosition.totalDebtBase)}
                 </span>
               </div>
@@ -229,31 +235,35 @@ export default function CreateSellOrderModal({
 
           {/* Order Type Selection */}
           <div>
-            <label className='block text-sm font-medium text-gray-700 mb-3'>Order Type</label>
+            <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3'>Order Type</label>
             <div className='grid grid-cols-2 gap-3'>
               <button
                 type='button'
                 onClick={() => setOrderType('full')}
                 className={`p-4 rounded-lg border text-left ${
                   orderType === 'full'
-                    ? 'border-blue-500 bg-blue-50 text-blue-900'
-                    : 'border-gray-300 hover:border-gray-400'
+                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-900 dark:text-blue-300'
+                    : 'border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500 text-gray-900 dark:text-white'
                 }`}
               >
                 <div className='font-medium'>Full Sale</div>
-                <div className='text-xs text-gray-600 mt-1'>Sell entire position for percentage of equity</div>
+                <div className='text-xs text-gray-600 dark:text-gray-400 mt-1'>
+                  Sell entire position for percentage of equity
+                </div>
               </button>
               <button
                 type='button'
                 onClick={() => setOrderType('partial')}
                 className={`p-4 rounded-lg border text-left ${
                   orderType === 'partial'
-                    ? 'border-blue-500 bg-blue-50 text-blue-900'
-                    : 'border-gray-300 hover:border-gray-400'
+                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-900 dark:text-blue-300'
+                    : 'border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500 text-gray-900 dark:text-white'
                 }`}
               >
                 <div className='font-medium'>Partial Sale</div>
-                <div className='text-xs text-gray-600 mt-1'>Partial debt repayment for collateral</div>
+                <div className='text-xs text-gray-600 dark:text-gray-400 mt-1'>
+                  Partial debt repayment for collateral
+                </div>
               </button>
             </div>
           </div>
@@ -261,7 +271,9 @@ export default function CreateSellOrderModal({
           {/* Common Fields */}
           <div className='grid grid-cols-2 gap-4'>
             <div>
-              <label className='block text-sm font-medium text-gray-700 mb-2'>Trigger Health Factor</label>
+              <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>
+                Trigger Health Factor
+              </label>
               <input
                 type='number'
                 step='0.1'
@@ -269,18 +281,20 @@ export default function CreateSellOrderModal({
                 max={currentHealthFactor.toString()}
                 value={triggerHealthFactor}
                 onChange={e => setTriggerHealthFactor(e.target.value)}
-                className='w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500'
+                className='w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white'
                 disabled={isLoading}
               />
               {errors.triggerHealthFactor && <p className='text-red-600 text-xs mt-1'>{errors.triggerHealthFactor}</p>}
             </div>
 
             <div>
-              <label className='block text-sm font-medium text-gray-700 mb-2'>Valid for (days)</label>
+              <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>
+                Valid for (days)
+              </label>
               <select
                 value={validDays}
                 onChange={e => setValidDays(e.target.value)}
-                className='w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500'
+                className='w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white'
                 disabled={isLoading}
               >
                 <option value='1'>1 day</option>
@@ -298,25 +312,29 @@ export default function CreateSellOrderModal({
             <div className='space-y-4'>
               <div className='grid grid-cols-2 gap-4'>
                 <div>
-                  <label className='block text-sm font-medium text-gray-700 mb-2'>Your Equity Share (%)</label>
+                  <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>
+                    Your Equity Share (%)
+                  </label>
                   <input
                     type='number'
                     min='10'
                     max='100'
                     value={percentOfEquity}
                     onChange={e => setPercentOfEquity(e.target.value)}
-                    className='w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500'
+                    className='w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white'
                     disabled={isLoading}
                   />
                   {errors.percentOfEquity && <p className='text-red-600 text-xs mt-1'>{errors.percentOfEquity}</p>}
                 </div>
 
                 <div>
-                  <label className='block text-sm font-medium text-gray-700 mb-2'>Payment Token</label>
+                  <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>
+                    Payment Token
+                  </label>
                   <select
                     value={paymentToken}
                     onChange={e => setPaymentToken(e.target.value as Address)}
-                    className='w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500'
+                    className='w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white'
                     disabled={isLoading}
                   >
                     {PAYMENT_TOKENS.map(token => (
@@ -335,11 +353,11 @@ export default function CreateSellOrderModal({
             <div className='space-y-4'>
               <div className='grid grid-cols-2 gap-4'>
                 <div>
-                  <label className='block text-sm font-medium text-gray-700 mb-2'>Repay Token</label>
+                  <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>Repay Token</label>
                   <select
                     value={repayToken}
                     onChange={e => setRepayToken(e.target.value as Address)}
-                    className='w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500'
+                    className='w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white'
                     disabled={isLoading}
                   >
                     {PAYMENT_TOKENS.map(token => (
@@ -351,14 +369,16 @@ export default function CreateSellOrderModal({
                 </div>
 
                 <div>
-                  <label className='block text-sm font-medium text-gray-700 mb-2'>Repay Amount</label>
+                  <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>
+                    Repay Amount
+                  </label>
                   <input
                     type='number'
                     step='0.01'
                     min='0'
                     value={repayAmount}
                     onChange={e => setRepayAmount(e.target.value)}
-                    className='w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500'
+                    className='w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white'
                     disabled={isLoading}
                     placeholder='Amount to repay'
                   />
@@ -367,7 +387,9 @@ export default function CreateSellOrderModal({
               </div>
 
               <div>
-                <label className='block text-sm font-medium text-gray-700 mb-2'>Buyer Bonus (%)</label>
+                <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>
+                  Buyer Bonus (%)
+                </label>
                 <input
                   type='number'
                   step='0.1'
@@ -375,17 +397,22 @@ export default function CreateSellOrderModal({
                   max='10'
                   value={bonus}
                   onChange={e => setBonus(e.target.value)}
-                  className='w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500'
+                  className='w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white'
                   disabled={isLoading}
                 />
               </div>
 
               {/* Collateral Selection */}
               <div>
-                <label className='block text-sm font-medium text-gray-700 mb-2'>Collateral to Withdraw</label>
+                <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>
+                  Collateral to Withdraw
+                </label>
                 <div className='space-y-2'>
                   {debtPosition.collaterals.map(collateral => (
-                    <div key={collateral.token} className='flex items-center justify-between p-3 border rounded-lg'>
+                    <div
+                      key={collateral.token}
+                      className='flex items-center justify-between p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700'
+                    >
                       <div className='flex items-center'>
                         <input
                           type='checkbox'
@@ -395,8 +422,8 @@ export default function CreateSellOrderModal({
                           disabled={isLoading}
                         />
                         <div>
-                          <div className='font-medium'>{collateral.symbol}</div>
-                          <div className='text-sm text-gray-600'>{getTokenName(collateral.symbol)}</div>
+                          <div className='font-medium text-gray-900 dark:text-white'>{collateral.symbol}</div>
+                          <div className='text-sm text-gray-600 dark:text-gray-400'>{collateral.name}</div>
                         </div>
                       </div>
                       {selectedCollaterals.includes(collateral.token) && (
@@ -412,10 +439,10 @@ export default function CreateSellOrderModal({
                                 [collateral.token]: e.target.value,
                               }))
                             }
-                            className='w-20 px-2 py-1 border border-gray-300 rounded text-sm'
+                            className='w-20 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white'
                             disabled={isLoading}
                           />
-                          <span className='ml-1 text-sm text-gray-600'>%</span>
+                          <span className='ml-1 text-sm text-gray-600 dark:text-gray-400'>%</span>
                         </div>
                       )}
                     </div>
@@ -431,10 +458,10 @@ export default function CreateSellOrderModal({
             <div
               className={`p-4 rounded-lg ${
                 txStatus.state === 'success'
-                  ? 'bg-green-50 text-green-800'
+                  ? 'bg-green-50 text-green-800 dark:bg-green-900/20 dark:text-green-300'
                   : txStatus.state === 'error'
-                  ? 'bg-red-50 text-red-800'
-                  : 'bg-blue-50 text-blue-800'
+                  ? 'bg-red-50 text-red-800 dark:bg-red-900/20 dark:text-red-300'
+                  : 'bg-blue-50 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300'
               }`}
             >
               <div className='flex items-center'>
@@ -457,7 +484,7 @@ export default function CreateSellOrderModal({
             <button
               type='button'
               onClick={onClose}
-              className='flex-1 px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50'
+              className='flex-1 px-4 py-2 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 bg-white dark:bg-gray-800'
               disabled={isLoading}
             >
               Cancel
