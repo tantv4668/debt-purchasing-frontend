@@ -124,6 +124,7 @@ export interface MarketOrder {
   estimatedProfit?: bigint;
   validUntil: Date;
   isActive: boolean;
+  canExecuteReason?: string;
   // Full order specific fields
   percentOfEquity?: number;
   paymentToken?: Address;
@@ -209,27 +210,16 @@ export interface UserSellOrder {
   validUntil: Date;
   triggerHealthFactor: number;
   currentHealthFactor: number;
-
-  // Full order specific fields
+  canExecute: 'YES' | 'NO' | string;
+  // Full sell order specific fields
   percentOfEquity?: number;
   paymentToken?: Address;
-
-  // Partial order specific fields
+  // Partial sell order specific fields
   repayToken?: Address;
   repayAmount?: bigint;
   bonus?: number;
   collateralTokens?: Address[];
   collateralPercentages?: number[];
-
-  // Order signature data
-  v?: number;
-  r?: string;
-  s?: string;
-
-  // Execution data
-  executedBy?: Address;
-  executedAt?: Date;
-  executionTxHash?: string;
 }
 
 export interface UserOrdersSummary {

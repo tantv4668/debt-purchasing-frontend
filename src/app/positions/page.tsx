@@ -1,13 +1,13 @@
 'use client';
 
 import { useState } from 'react';
+import { formatUnits } from 'viem';
 import { useAccount, useChainId, useWalletClient } from 'wagmi';
 import CreateDebtModal from '../../components/CreateDebtModal';
 import CreateSellOrderModal from '../../components/CreateSellOrderModal';
 import ManagePositionModal from '../../components/ManagePositionModal';
 import Tooltip from '../../components/Tooltip';
 import { useUserDebtPositions, useUserPositionSummary } from '../../lib/hooks/useDebtPositions';
-import { formatHealthFactor, useHealthFactor } from '../../lib/hooks/useHealthFactor';
 import { useLiquidationThresholds } from '../../lib/hooks/useLiquidationThresholds';
 import { usePriceTokens } from '../../lib/hooks/usePriceTokens';
 import { useOrderActions, useUserOrders, useUserOrdersSummary } from '../../lib/hooks/useUserOrders';
@@ -17,7 +17,48 @@ import { createOrderService } from '../../lib/utils/create-order';
 
 // Component to calculate and display health factor for a single position
 function PositionHealthFactor({ position }: { position: any }) {
-  const healthFactorData = useHealthFactor(position.collaterals, position.debts);
+  // Use health factor directly from backend data (already in wei format)
+  const healthFactorValue = Number(formatUnits(position.healthFactor, 18));
+
+  // Determine color and status based on health factor value
+  const getHealthFactorDisplay = (value: number) => {
+    if (value >= 2) {
+      return {
+        color: 'text-green-600 dark:text-green-400',
+        label: 'Safe',
+        status: 'safe' as const,
+      };
+    } else if (value >= 1.5) {
+      return {
+        color: 'text-yellow-600 dark:text-yellow-400',
+        label: 'Warning',
+        status: 'warning' as const,
+      };
+    } else if (value >= 1) {
+      return {
+        color: 'text-red-600 dark:text-red-400',
+        label: 'Danger',
+        status: 'danger' as const,
+      };
+    } else {
+      return {
+        color: 'text-red-800 dark:text-red-300',
+        label: 'Liquidation Risk',
+        status: 'liquidation' as const,
+      };
+    }
+  };
+
+  const { color, label } = getHealthFactorDisplay(healthFactorValue);
+
+  // Calculate collateral and debt values for tooltip
+  const totalCollateralValue = position.collaterals.reduce((sum: number, collateral: any) => {
+    return sum + (collateral.valueInUSD || 0);
+  }, 0);
+
+  const totalDebtValue = position.debts.reduce((sum: number, debt: any) => {
+    return sum + (debt.valueInUSD || 0);
+  }, 0);
 
   return (
     <div>
@@ -41,88 +82,76 @@ function PositionHealthFactor({ position }: { position: any }) {
           </svg>
         </Tooltip>
       </h4>
-      {healthFactorData.isLoading ? (
-        <div className='text-gray-400'>Loading...</div>
-      ) : healthFactorData.error ? (
-        <div className='text-red-500 text-sm'>Error calculating HF</div>
-      ) : (
-        <>
-          <div className={`text-2xl font-bold mb-1 ${healthFactorData.color} flex items-center gap-2`}>
-            {formatHealthFactor(healthFactorData.healthFactor)}
-            <Tooltip
-              content={`Current Health Factor: ${formatHealthFactor(
-                healthFactorData.healthFactor,
-              )}. Collateral: $${healthFactorData.totalCollateralValue.toFixed(
-                2,
-              )}, Debt: $${healthFactorData.totalBorrowedValue.toFixed(2)}`}
-              maxWidth='lg'
-            >
-              <svg
-                className='w-4 h-4 text-gray-500 dark:text-gray-400 cursor-help'
-                fill='currentColor'
-                viewBox='0 0 20 20'
-                xmlns='http://www.w3.org/2000/svg'
-              >
-                <path
-                  fillRule='evenodd'
-                  d='M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z'
-                  clipRule='evenodd'
-                />
-              </svg>
-            </Tooltip>
-          </div>
-          <div className='text-xs text-gray-500 dark:text-gray-400 flex items-center gap-2'>
-            {healthFactorData.label}
-            <Tooltip
-              content={`${healthFactorData.label}: ${
-                healthFactorData.healthFactor >= 2
-                  ? 'Very safe position'
-                  : healthFactorData.healthFactor >= 1.5
-                  ? 'Moderately safe position'
-                  : healthFactorData.healthFactor >= 1.1
-                  ? 'Risky position, monitor closely'
-                  : 'Critical - risk of liquidation'
-              }`}
-              maxWidth='lg'
-            >
-              <svg
-                className='w-3 h-3 text-gray-500 dark:text-gray-400 cursor-help'
-                fill='currentColor'
-                viewBox='0 0 20 20'
-                xmlns='http://www.w3.org/2000/svg'
-              >
-                <path
-                  fillRule='evenodd'
-                  d='M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z'
-                  clipRule='evenodd'
-                />
-              </svg>
-            </Tooltip>
-          </div>
-          <div className='text-xs text-gray-400 mt-1 flex items-center gap-2'>
-            LT: {(healthFactorData.weightedAvgLiquidationThreshold * 100).toFixed(1)}%
-            <Tooltip
-              content={`Liquidation Threshold: ${(healthFactorData.weightedAvgLiquidationThreshold * 100).toFixed(
-                1,
-              )}%. This is the weighted average percentage of collateral value that counts toward your health factor. Higher LT = safer assets.`}
-              maxWidth='2xl'
-            >
-              <svg
-                className='w-3 h-3 text-gray-500 dark:text-gray-400 cursor-help'
-                fill='currentColor'
-                viewBox='0 0 20 20'
-                xmlns='http://www.w3.org/2000/svg'
-              >
-                <path
-                  fillRule='evenodd'
-                  d='M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z'
-                  clipRule='evenodd'
-                />
-              </svg>
-            </Tooltip>
-          </div>
-        </>
-      )}
+      <div className={`text-2xl font-bold mb-1 ${color} flex items-center gap-2`}>
+        {(Math.floor(healthFactorValue * 100) / 100).toFixed(2)}
+        <Tooltip
+          content={`Current Health Factor: ${(Math.floor(healthFactorValue * 100) / 100).toFixed(
+            2,
+          )}. Collateral: $${totalCollateralValue.toFixed(2)}, Debt: $${totalDebtValue.toFixed(2)}`}
+          maxWidth='lg'
+        >
+          <svg
+            className='w-4 h-4 text-gray-500 dark:text-gray-400 cursor-help'
+            fill='currentColor'
+            viewBox='0 0 20 20'
+            xmlns='http://www.w3.org/2000/svg'
+          >
+            <path
+              fillRule='evenodd'
+              d='M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z'
+              clipRule='evenodd'
+            />
+          </svg>
+        </Tooltip>
+      </div>
+      <div className='text-xs text-gray-500 dark:text-gray-400 flex items-center gap-2'>
+        {label}
+        <Tooltip
+          content={`${label}: ${
+            healthFactorValue >= 2
+              ? 'Very safe position'
+              : healthFactorValue >= 1.5
+              ? 'Moderately safe position'
+              : healthFactorValue >= 1.1
+              ? 'Risky position, monitor closely'
+              : 'Critical - risk of liquidation'
+          }`}
+          maxWidth='lg'
+        >
+          <svg
+            className='w-3 h-3 text-gray-500 dark:text-gray-400 cursor-help'
+            fill='currentColor'
+            viewBox='0 0 20 20'
+            xmlns='http://www.w3.org/2000/svg'
+          >
+            <path
+              fillRule='evenodd'
+              d='M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z'
+              clipRule='evenodd'
+            />
+          </svg>
+        </Tooltip>
+      </div>
+      <div className='text-xs text-gray-400 mt-1 flex items-center gap-2'>
+        LT: 85.0%
+        <Tooltip
+          content={`Liquidation Threshold: 85.0%. This is the weighted average percentage of collateral value that counts toward your health factor. Higher LT = safer assets.`}
+          maxWidth='2xl'
+        >
+          <svg
+            className='w-3 h-3 text-gray-500 dark:text-gray-400 cursor-help'
+            fill='currentColor'
+            viewBox='0 0 20 20'
+            xmlns='http://www.w3.org/2000/svg'
+          >
+            <path
+              fillRule='evenodd'
+              d='M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z'
+              clipRule='evenodd'
+            />
+          </svg>
+        </Tooltip>
+      </div>
     </div>
   );
 }
@@ -829,8 +858,15 @@ export default function PositionsPage() {
                           </div>
                           <div>
                             <span className='text-sm text-gray-600 dark:text-gray-400'>Current Health Factor:</span>
-                            <span className='ml-2 font-medium text-gray-900 dark:text-white'>
-                              {order.currentHealthFactor.toFixed(2)}
+                            <span
+                              className={`ml-2 font-medium ${
+                                order.canExecute === 'YES'
+                                  ? 'text-red-600 dark:text-red-400'
+                                  : 'text-gray-900 dark:text-white'
+                              }`}
+                            >
+                              {(Math.floor(order.currentHealthFactor * 100) / 100).toFixed(2)}
+                              {order.canExecute === 'YES' && ' (Executable)'}
                             </span>
                           </div>
                           <div>

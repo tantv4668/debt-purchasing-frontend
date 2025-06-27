@@ -125,8 +125,8 @@ export function useUserDebtPositions(limit = 10, offset = 0) {
           };
         });
 
-        // Parse health factor from backend (it's already a string like "1.0")
-        const healthFactorValue = parseFloat(position.healthFactor || '1.0');
+        // Use health factor directly from backend (it's already in wei format)
+        const healthFactor = position.healthFactor || '1000000000000000000'; // Default to 1.0 if not provided
 
         return {
           address: position.id as `0x${string}`,
@@ -137,7 +137,7 @@ export function useUserDebtPositions(limit = 10, offset = 0) {
           availableBorrowsBase: BigInt(Math.floor((totalCollateralUSD * 0.8 - totalDebtUSD) * 1e18)),
           currentLiquidationThreshold: BigInt(Math.floor(0.85 * 1e18)), // 85%
           ltv: BigInt(Math.floor(0.8 * 1e18)), // 80%
-          healthFactor: BigInt(Math.floor(healthFactorValue * 1e18)),
+          healthFactor: BigInt(healthFactor), // Use backend's health factor directly
           collaterals,
           debts,
           createdAt: position.blockchainCreatedAt

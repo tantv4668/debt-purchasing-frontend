@@ -10,6 +10,9 @@ const convertBackendOrderToUserSellOrder = (backendOrder: any): UserSellOrder =>
   const type = backendOrder.orderType === 'FULL' ? 'full' : 'partial';
   const status = backendOrder.status.toLowerCase() as 'active' | 'expired' | 'executed' | 'cancelled';
 
+  // Get current HF from backend response
+  const currentHF = backendOrder.currentHF || backendOrder.healthFactor;
+
   const baseOrder = {
     id: backendOrder.id,
     debtAddress: backendOrder.debtAddress as Address,
@@ -18,7 +21,8 @@ const convertBackendOrderToUserSellOrder = (backendOrder: any): UserSellOrder =>
     createdAt: new Date(backendOrder.createdAt),
     validUntil: new Date(backendOrder.endTime),
     triggerHealthFactor: parseFloat(backendOrder.triggerHF) / 1e18, // Convert from wei
-    currentHealthFactor: 1.5, // Default, would need to be calculated from position data
+    currentHealthFactor: parseFloat(currentHF) / 1e18, // Convert from wei if exists
+    canExecute: backendOrder.canExecute || 'NO', // Backend's execution status
   };
 
   if (type === 'full') {

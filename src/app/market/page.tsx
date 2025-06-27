@@ -1,152 +1,21 @@
 'use client';
 
+import { useMarketOrders } from '@/lib/hooks/useMarketOrders';
+import { useOrderExecution } from '@/lib/hooks/useOrderExecution';
 import { HealthFactorStatus, MarketOrder, OrderType } from '@/lib/types';
-import {
-  formatPercentage,
-  formatTimeRemaining,
-  formatUSD,
-  generateMockAddress,
-  generateMockOrderId,
-  getHealthFactorStatus,
-  truncateAddress,
-} from '@/lib/utils';
-// AppKit button will be used instead
+import { formatPercentage, formatTimeRemaining, formatUSD, getHealthFactorStatus, truncateAddress } from '@/lib/utils';
 import { useEffect, useState } from 'react';
-import { Address } from 'viem';
 import { useAccount } from 'wagmi';
-
-// Mock data for development - replace with real data
-const generateMockOrders = (): MarketOrder[] => {
-  return [
-    {
-      id: generateMockOrderId(),
-      type: 'full',
-      seller: generateMockAddress(),
-      debtPosition: {
-        address: generateMockAddress(),
-        owner: generateMockAddress(),
-        nonce: BigInt(1),
-        totalCollateralBase: BigInt('2500000000000'), // $25,000
-        totalDebtBase: BigInt('1000000000000'), // $10,000
-        availableBorrowsBase: BigInt('500000000000'), // $5,000
-        currentLiquidationThreshold: BigInt(8500), // 85%
-        ltv: BigInt(8000), // 80%
-        healthFactor: BigInt('1800000000000000000'), // 1.8
-        collaterals: [
-          {
-            token: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2' as Address,
-            symbol: 'WETH',
-            name: 'Wrapped Ethereum',
-            decimals: 18,
-            balance: BigInt('10000000000000000000'), // 10 ETH
-            balanceUSD: BigInt('2000000000000'), // $20,000
-          },
-          {
-            token: '0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599' as Address,
-            symbol: 'WBTC',
-            name: 'Wrapped Bitcoin',
-            decimals: 8,
-            balance: BigInt('12500000'), // 0.125 BTC
-            balanceUSD: BigInt('500000000000'), // $5,000
-          },
-        ],
-        debts: [
-          {
-            token: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48' as Address,
-            symbol: 'USDC',
-            name: 'USD Coin',
-            decimals: 6,
-            balance: BigInt('10000000000'), // 10,000 USDC
-            balanceUSD: BigInt('1000000000000'), // $10,000
-          },
-        ],
-      },
-      triggerHealthFactor: 1.5,
-      currentHealthFactor: 1.8,
-      estimatedProfit: BigInt('150000000000'), // $1,500
-      validUntil: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000), // 5 days
-      isActive: true,
-      percentOfEquity: 90,
-      paymentToken: '0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599' as Address,
-    },
-    {
-      id: generateMockOrderId(),
-      type: 'partial',
-      seller: generateMockAddress(),
-      debtPosition: {
-        address: generateMockAddress(),
-        owner: generateMockAddress(),
-        nonce: BigInt(2),
-        totalCollateralBase: BigInt('1500000000000'), // $15,000
-        totalDebtBase: BigInt('800000000000'), // $8,000
-        availableBorrowsBase: BigInt('200000000000'), // $2,000
-        currentLiquidationThreshold: BigInt(8500), // 85%
-        ltv: BigInt(8000), // 80%
-        healthFactor: BigInt('1400000000000000000'), // 1.4
-        collaterals: [
-          {
-            token: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2' as Address,
-            symbol: 'WETH',
-            name: 'Wrapped Ethereum',
-            decimals: 18,
-            balance: BigInt('6000000000000000000'), // 6 ETH
-            balanceUSD: BigInt('1200000000000'), // $12,000
-          },
-          {
-            token: '0x6B175474E89094C44Da98b954EedeAC495271d0F' as Address,
-            symbol: 'DAI',
-            name: 'Dai Stablecoin',
-            decimals: 18,
-            balance: BigInt('3000000000000000000000'), // 3,000 DAI
-            balanceUSD: BigInt('300000000000'), // $3,000
-          },
-        ],
-        debts: [
-          {
-            token: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48' as Address,
-            symbol: 'USDC',
-            name: 'USD Coin',
-            decimals: 6,
-            balance: BigInt('5000000000'), // 5,000 USDC
-            balanceUSD: BigInt('500000000000'), // $5,000
-          },
-          {
-            token: '0x6B175474E89094C44Da98b954EedeAC495271d0F' as Address,
-            symbol: 'DAI',
-            name: 'Dai Stablecoin',
-            decimals: 18,
-            balance: BigInt('3000000000000000000000'), // 3,000 DAI
-            balanceUSD: BigInt('300000000000'), // $3,000
-          },
-        ],
-      },
-      triggerHealthFactor: 1.3,
-      currentHealthFactor: 1.4,
-      estimatedProfit: BigInt('75000000000'), // $750
-      validUntil: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000), // 2 days
-      isActive: true,
-      repayToken: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48' as Address,
-      repayAmount: BigInt('2000000000'), // 2,000 USDC
-      bonus: 2,
-      collateralTokens: ['0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2' as Address],
-    },
-  ];
-};
 
 export default function MarketPage() {
   const { isConnected } = useAccount();
-  const [orders, setOrders] = useState<MarketOrder[]>([]);
+  const { orders, isLoading, error, refetch } = useMarketOrders();
+  const { executeOrder, isExecuting, executingOrderId } = useOrderExecution();
+
   const [filteredOrders, setFilteredOrders] = useState<MarketOrder[]>([]);
   const [orderTypeFilter, setOrderTypeFilter] = useState<OrderType | 'all'>('all');
   const [healthFactorFilter, setHealthFactorFilter] = useState<HealthFactorStatus | 'all'>('all');
   const [sortBy, setSortBy] = useState<'healthFactor' | 'profit' | 'timeRemaining'>('healthFactor');
-  const [selectedOrder, setSelectedOrder] = useState<MarketOrder | null>(null);
-  const [isExecuting, setIsExecuting] = useState(false);
-
-  useEffect(() => {
-    // Load mock data - replace with real API call
-    setOrders(generateMockOrders());
-  }, []);
 
   useEffect(() => {
     let filtered = orders;
@@ -184,21 +53,40 @@ export default function MarketPage() {
       return;
     }
 
-    setIsExecuting(true);
-    setSelectedOrder(order);
-
     try {
-      // Simulate order execution - replace with real contract call
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      console.log('🎯 Starting order execution for:', order.id);
 
-      // Update order status
-      setOrders(prev => prev.filter(o => o.id !== order.id));
-      alert(`Successfully executed ${order.type} order!`);
+      const txHash = await executeOrder(order);
+      console.log('✅ Order execution transaction:', txHash);
+
+      alert(`Successfully executed ${order.type} order!\nTransaction: ${txHash}`);
+
+      // Wait a bit before refreshing to allow blockchain to update
+      setTimeout(() => {
+        refetch();
+      }, 2000);
     } catch (error) {
-      alert('Failed to execute order');
-    } finally {
-      setIsExecuting(false);
-      setSelectedOrder(null);
+      console.error('❌ Failed to execute order:', error);
+
+      let errorMessage = 'Unknown error occurred';
+      if (error instanceof Error) {
+        errorMessage = error.message;
+
+        // Provide more specific error messages for common cases
+        if (error.message.includes('insufficient funds')) {
+          errorMessage = 'Insufficient funds to execute this order. Please check your token balance.';
+        } else if (error.message.includes('allowance')) {
+          errorMessage = 'Token approval failed. Please try again or check your wallet settings.';
+        } else if (error.message.includes('HF too high')) {
+          errorMessage = 'Order cannot be executed yet - health factor is still too high.';
+        } else if (error.message.includes('Invalid signature')) {
+          errorMessage = 'Order signature is invalid. The order may have been cancelled or expired.';
+        } else if (error.message.includes('User rejected')) {
+          errorMessage = 'Transaction was rejected in your wallet.';
+        }
+      }
+
+      alert(`Failed to execute order: ${errorMessage}`);
     }
   };
 
@@ -346,10 +234,51 @@ export default function MarketPage() {
                     </span>
                   </div>
                   <div>
-                    <span className='text-gray-600 dark:text-gray-400'>Seller:</span>
-                    <span className='ml-2 font-mono text-xs text-gray-900 dark:text-white'>
-                      {truncateAddress(order.seller)}
+                    <span className='text-gray-600 dark:text-gray-400'>Health Factor:</span>
+                    <span className='ml-2 font-medium text-gray-900 dark:text-white'>
+                      {order.currentHealthFactor.toFixed(3)}
                     </span>
+                  </div>
+                </div>
+
+                {/* Collateral Tokens */}
+                {order.debtPosition.collaterals.length > 0 && (
+                  <div className='mt-3 pt-3 border-t border-gray-200 dark:border-gray-600'>
+                    <div className='text-xs text-gray-600 dark:text-gray-400 mb-2'>Collateral Tokens:</div>
+                    <div className='flex flex-wrap gap-1'>
+                      {order.debtPosition.collaterals.map((collateral, index) => (
+                        <span
+                          key={index}
+                          className='px-2 py-1 bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 rounded text-xs'
+                        >
+                          {collateral.symbol} ({formatUSD(collateral.balanceUSD)})
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Debt Tokens */}
+                {order.debtPosition.debts.length > 0 && (
+                  <div className='mt-2'>
+                    <div className='text-xs text-gray-600 dark:text-gray-400 mb-2'>Debt Tokens:</div>
+                    <div className='flex flex-wrap gap-1'>
+                      {order.debtPosition.debts.map((debt, index) => (
+                        <span
+                          key={index}
+                          className='px-2 py-1 bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200 rounded text-xs'
+                        >
+                          {debt.symbol} ({formatUSD(debt.balanceUSD)})
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className='mt-3 pt-3 border-t border-gray-200 dark:border-gray-600'>
+                  <div className='text-xs text-gray-600 dark:text-gray-400'>
+                    <span>Seller: </span>
+                    <span className='font-mono text-gray-900 dark:text-white'>{truncateAddress(order.seller)}</span>
                   </div>
                 </div>
               </div>
@@ -357,9 +286,24 @@ export default function MarketPage() {
               {/* Order Details */}
               <div className='space-y-3 mb-4'>
                 <div className='flex justify-between'>
+                  <span className='text-gray-600 dark:text-gray-400'>Order ID:</span>
+                  <span className='font-mono text-xs text-gray-900 dark:text-white'>{order.id.slice(0, 8)}...</span>
+                </div>
+
+                <div className='flex justify-between'>
                   <span className='text-gray-600 dark:text-gray-400'>Trigger Health Factor:</span>
                   <span className='font-medium text-gray-900 dark:text-white'>
                     {order.triggerHealthFactor.toFixed(2)}
+                  </span>
+                </div>
+
+                <div className='flex justify-between'>
+                  <span className='text-gray-600 dark:text-gray-400'>Current vs Trigger HF:</span>
+                  <span className='font-medium text-gray-900 dark:text-white'>
+                    {order.currentHealthFactor.toFixed(3)} / {order.triggerHealthFactor.toFixed(3)}
+                    {order.currentHealthFactor === order.triggerHealthFactor && (
+                      <span className='text-xs text-gray-500 ml-1'>(estimated)</span>
+                    )}
                   </span>
                 </div>
 
@@ -368,11 +312,17 @@ export default function MarketPage() {
                     <div className='flex justify-between'>
                       <span className='text-gray-600 dark:text-gray-400'>Seller Gets:</span>
                       <span className='font-medium text-gray-900 dark:text-white'>
-                        {formatPercentage(order.percentOfEquity || 0)}
+                        {formatPercentage(order.percentOfEquity || 0)} of equity
                       </span>
                     </div>
                     <div className='flex justify-between'>
-                      <span className='text-gray-600 dark:text-gray-400'>Your Potential Profit:</span>
+                      <span className='text-gray-600 dark:text-gray-400'>Payment Token:</span>
+                      <span className='font-mono text-xs text-gray-900 dark:text-white'>
+                        {truncateAddress(order.paymentToken || '0x')}
+                      </span>
+                    </div>
+                    <div className='flex justify-between'>
+                      <span className='text-gray-600 dark:text-gray-400'>Est. Profit:</span>
                       <span className='font-medium text-green-600 dark:text-green-400'>
                         {formatUSD(order.estimatedProfit || BigInt(0))}
                       </span>
@@ -389,34 +339,72 @@ export default function MarketPage() {
                       </span>
                     </div>
                     <div className='flex justify-between'>
-                      <span className='text-gray-600 dark:text-gray-400'>Your Bonus:</span>
+                      <span className='text-gray-600 dark:text-gray-400'>Repay Token:</span>
+                      <span className='font-mono text-xs text-gray-900 dark:text-white'>
+                        {truncateAddress(order.repayToken || '0x')}
+                      </span>
+                    </div>
+                    <div className='flex justify-between'>
+                      <span className='text-gray-600 dark:text-gray-400'>Bonus:</span>
                       <span className='font-medium text-green-600 dark:text-green-400'>
                         {formatPercentage(order.bonus || 0)}
                       </span>
                     </div>
+                    <div className='flex justify-between'>
+                      <span className='text-gray-600 dark:text-gray-400'>Collateral Tokens:</span>
+                      <span className='font-medium text-gray-900 dark:text-white'>
+                        {order.collateralTokens?.length || 0} token
+                        {(order.collateralTokens?.length || 0) !== 1 ? 's' : ''}
+                      </span>
+                    </div>
                   </>
                 )}
+
+                {/* Execution Status */}
+                <div className='pt-2 border-t border-gray-200 dark:border-gray-600'>
+                  <div className='flex justify-between items-center'>
+                    <span className='text-gray-600 dark:text-gray-400'>Execution Status:</span>
+                    <div className='text-right'>
+                      <span
+                        className={`font-medium ${
+                          order.isActive ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+                        }`}
+                      >
+                        {order.isActive ? 'Ready' : 'Waiting'}
+                      </span>
+                      {order.canExecuteReason && !order.isActive && (
+                        <div className='text-xs text-gray-500 dark:text-gray-400 mt-1'>{order.canExecuteReason}</div>
+                      )}
+                    </div>
+                  </div>
+                </div>
               </div>
 
               {/* Action Button */}
               <button
                 onClick={() => handleExecuteOrder(order)}
-                disabled={isExecuting && selectedOrder?.id === order.id}
+                disabled={!order.isActive || (isExecuting && executingOrderId === order.id)}
                 className='w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors'
               >
-                {isExecuting && selectedOrder?.id === order.id
+                {isExecuting && executingOrderId === order.id
                   ? 'Executing...'
+                  : !order.isActive
+                  ? 'Not Executable'
                   : `Buy ${order.type === 'full' ? 'Position' : 'Order'}`}
               </button>
             </div>
           ))}
         </div>
 
-        {filteredOrders.length === 0 && (
+        {!isLoading && filteredOrders.length === 0 && (
           <div className='text-center py-12'>
             <div className='text-4xl mb-4'>📭</div>
             <h3 className='text-lg font-medium text-gray-900 dark:text-white mb-2'>No orders found</h3>
-            <p className='text-gray-600 dark:text-gray-300'>Try adjusting your filters to see more results.</p>
+            <p className='text-gray-600 dark:text-gray-300'>
+              {orders.length === 0
+                ? 'No orders are currently available in the market.'
+                : 'Try adjusting your filters to see more results.'}
+            </p>
           </div>
         )}
       </main>
