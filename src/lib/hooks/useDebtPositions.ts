@@ -5,9 +5,11 @@ import { AAVE_ROUTER_ABI, ERC20_ABI, getAaveRouterAddress } from '../contracts';
 import { CONTRACT_DEFAULTS } from '../contracts/config';
 import { SUPPORTED_TOKENS } from '../contracts/tokens';
 import type { CreatePositionParams, DebtPosition, UserPositionSummary } from '../types/debt-position';
+import { toPreciseWei } from '../utils';
 import { validateWalletConnection } from '../utils/contract-helpers';
 import { logger } from '../utils/logger';
 import { getSubgraphClient, isSubgraphSupported } from '../utils/subgraph-client';
+import { formatTokenData, tokenPriceService } from '../utils/token-helpers';
 
 // Hook to get user's debt positions from backend API
 export function useUserDebtPositions(limit = 10, offset = 0) {
@@ -37,6 +39,9 @@ export function useUserDebtPositions(limit = 10, offset = 0) {
     try {
       logger.info('Fetching user debt positions from backend API for:', address, `limit: ${limit}, offset: ${offset}`);
 
+      // Fetch token prices using shared service
+      const tokenPrices = await tokenPriceService.getPrices();
+
       const subgraphClient = getSubgraphClient(chainId);
       const cachedData = await subgraphClient.getCachedPositions(address.toLowerCase(), limit, offset);
 
@@ -50,80 +55,20 @@ export function useUserDebtPositions(limit = 10, offset = 0) {
       setTotal(cachedData.total || cachedData.positions.length);
 
       const formattedPositions: DebtPosition[] = cachedData.positions.map((position: any) => {
-        // Get token info for collaterals and debts (fallback values since backend doesn't include full token data)
-        const getTokenInfo = (tokenAddress: string) => {
-          // Look up token in SUPPORTED_TOKENS by address
-          const tokenEntry = Object.entries(SUPPORTED_TOKENS).find(
-            ([, token]) =>
-              token.addresses[chainId as keyof typeof token.addresses]?.toLowerCase() === tokenAddress.toLowerCase(),
-          );
+        // Format collaterals and debts using shared helper
+        const { formattedTokens: collaterals, totalUSD: totalCollateralUSD } = formatTokenData(
+          position.collaterals,
+          chainId,
+          tokenPrices,
+          'collateral',
+        );
 
-          if (tokenEntry) {
-            const [symbol, tokenConfig] = tokenEntry;
-            return {
-              symbol,
-              decimals: tokenConfig.decimals,
-              priceUSD: 1.0, // Default price, would need to fetch from oracle
-            };
-          }
-
-          // Fallback for unknown tokens
-          return {
-            symbol: 'UNKNOWN',
-            decimals: 18,
-            priceUSD: 1.0,
-          };
-        };
-
-        // Calculate totals in USD
-        let totalCollateralUSD = 0;
-        let totalDebtUSD = 0;
-
-        // Format collaterals
-        const collaterals = position.collaterals.map((collateral: any) => {
-          const amount = parseFloat(collateral.amount);
-          const tokenInfo = getTokenInfo(collateral.token);
-          const price = tokenInfo.priceUSD;
-          const valueInUSD = amount * price;
-          const balance = BigInt(Math.floor(amount * Math.pow(10, tokenInfo.decimals)));
-          totalCollateralUSD += valueInUSD;
-
-          return {
-            token: collateral.token as `0x${string}`,
-            symbol: tokenInfo.symbol,
-            name: tokenInfo.symbol,
-            decimals: tokenInfo.decimals,
-            balance,
-            balanceFormatted: amount.toFixed(4),
-            valueInBase: BigInt(Math.floor(valueInUSD * 1e18)),
-            valueInUSD: valueInUSD,
-            aTokenAddress: '0x0000000000000000000000000000000000000000' as `0x${string}`,
-          };
-        });
-
-        // Format debts
-        const debts = position.debts.map((debt: any) => {
-          const amount = parseFloat(debt.amount);
-          const tokenInfo = getTokenInfo(debt.token);
-          const price = tokenInfo.priceUSD;
-          const valueInUSD = amount * price;
-          const balance = BigInt(Math.floor(amount * Math.pow(10, tokenInfo.decimals)));
-          totalDebtUSD += valueInUSD;
-
-          return {
-            token: debt.token as `0x${string}`,
-            symbol: tokenInfo.symbol,
-            name: tokenInfo.symbol,
-            decimals: tokenInfo.decimals,
-            balance,
-            balanceFormatted: amount.toFixed(4),
-            valueInBase: BigInt(Math.floor(valueInUSD * 1e18)),
-            valueInUSD: valueInUSD,
-            interestRateMode: parseInt(debt.interestRateMode) as 1 | 2,
-            variableDebtTokenAddress: '0x0000000000000000000000000000000000000000' as `0x${string}`,
-            stableDebtTokenAddress: '0x0000000000000000000000000000000000000000' as `0x${string}`,
-          };
-        });
+        const { formattedTokens: debts, totalUSD: totalDebtUSD } = formatTokenData(
+          position.debts,
+          chainId,
+          tokenPrices,
+          'debt',
+        );
 
         // Use health factor directly from backend (it's already in wei format)
         const healthFactor = position.healthFactor || '1000000000000000000'; // Default to 1.0 if not provided
@@ -132,9 +77,11 @@ export function useUserDebtPositions(limit = 10, offset = 0) {
           address: position.id as `0x${string}`,
           owner: address,
           nonce: parseInt(position.nonce || '0'),
-          totalCollateralBase: BigInt(Math.floor(totalCollateralUSD * 1e18)),
-          totalDebtBase: BigInt(Math.floor(totalDebtUSD * 1e18)),
-          availableBorrowsBase: BigInt(Math.floor((totalCollateralUSD * 0.8 - totalDebtUSD) * 1e18)),
+          totalCollateralBase: toPreciseWei(totalCollateralUSD), // Precise conversion to bigint with 18 decimals
+          totalDebtBase: toPreciseWei(totalDebtUSD), // Precise conversion to bigint with 18 decimals
+          availableBorrowsBase: toPreciseWei(
+            Math.max(0, totalCollateralUSD * 0.8 - totalDebtUSD), // 80% LTV minus current debt
+          ),
           currentLiquidationThreshold: BigInt(Math.floor(0.85 * 1e18)), // 85%
           ltv: BigInt(Math.floor(0.8 * 1e18)), // 80%
           healthFactor: BigInt(healthFactor), // Use backend's health factor directly

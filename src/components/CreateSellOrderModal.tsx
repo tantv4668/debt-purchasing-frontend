@@ -1,5 +1,7 @@
 'use client';
 
+import { ChainId } from '@/lib/contracts/chains';
+import { SUPPORTED_TOKENS } from '@/lib/contracts/tokens';
 import {
   CreateFullSellOrderParams,
   CreatePartialSellOrderParams,
@@ -8,15 +10,16 @@ import {
   TransactionStatus,
 } from '@/lib/types';
 import { DebtPosition } from '@/lib/types/debt-position';
+import { useEffect, useMemo, useState } from 'react';
+import { Address } from 'viem';
+import { useChainId } from 'wagmi';
 import {
   formatHealthFactor,
-  formatUSD,
+  formatWeiToUSD,
   validateHealthFactorTrigger,
   validateOrderValidity,
   validatePercentOfEquity,
-} from '@/lib/utils';
-import { useState } from 'react';
-import { Address } from 'viem';
+} from '../lib/utils';
 
 interface CreateSellOrderModalProps {
   isOpen: boolean;
@@ -25,19 +28,39 @@ interface CreateSellOrderModalProps {
   onCreateOrder: (params: CreateFullSellOrderParams | CreatePartialSellOrderParams) => Promise<void>;
 }
 
-const PAYMENT_TOKENS = [
-  { address: '0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599' as Address, symbol: 'WBTC', name: 'Wrapped Bitcoin' },
-  { address: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48' as Address, symbol: 'USDC', name: 'USD Coin' },
-  { address: '0x6B175474E89094C44Da98b954EedeAC495271d0F' as Address, symbol: 'DAI', name: 'Dai Stablecoin' },
-  { address: '0xdAC17F958D2ee523a2206206994597C13D831ec7' as Address, symbol: 'USDT', name: 'Tether USD' },
-];
-
 export default function CreateSellOrderModal({
   isOpen,
   onClose,
   debtPosition,
   onCreateOrder,
 }: CreateSellOrderModalProps) {
+  const chainId = useChainId();
+
+  // Get payment tokens available on current chain
+  const paymentTokens = useMemo(() => {
+    const currentChainId = (chainId as ChainId) || ChainId.SEPOLIA;
+
+    // Select commonly used payment tokens (stablecoins and major assets)
+    const preferredTokens = ['WBTC', 'USDC', 'DAI', 'USDT'];
+
+    return preferredTokens
+      .map(symbol => {
+        const token = SUPPORTED_TOKENS[symbol];
+        if (!token || !token.addresses[currentChainId]) return null;
+
+        return {
+          address: token.addresses[currentChainId] as Address,
+          symbol: token.symbol,
+          name: token.name,
+        };
+      })
+      .filter(Boolean) as Array<{
+      address: Address;
+      symbol: string;
+      name: string;
+    }>;
+  }, [chainId]);
+
   const [orderType, setOrderType] = useState<OrderType>('full');
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<OrderFormErrors>({});
@@ -46,15 +69,27 @@ export default function CreateSellOrderModal({
   // Full order form state
   const [triggerHealthFactor, setTriggerHealthFactor] = useState('1.4');
   const [percentOfEquity, setPercentOfEquity] = useState('90');
-  const [paymentToken, setPaymentToken] = useState<Address>(PAYMENT_TOKENS[0].address);
+  const [paymentToken, setPaymentToken] = useState<Address>('0x' as Address);
   const [validDays, setValidDays] = useState('7');
 
   // Partial order form state
-  const [repayToken, setRepayToken] = useState<Address>(PAYMENT_TOKENS[1].address);
+  const [repayToken, setRepayToken] = useState<Address>('0x' as Address);
   const [repayAmount, setRepayAmount] = useState('');
   const [selectedCollaterals, setSelectedCollaterals] = useState<Address[]>([]);
   const [collateralPercentages, setCollateralPercentages] = useState<Record<Address, string>>({});
   const [bonus, setBonus] = useState('1');
+
+  // Update token states when paymentTokens change
+  useEffect(() => {
+    if (paymentTokens.length > 0) {
+      if (paymentToken === '0x') {
+        setPaymentToken(paymentTokens[0].address);
+      }
+      if (repayToken === '0x') {
+        setRepayToken(paymentTokens[1]?.address || paymentTokens[0].address);
+      }
+    }
+  }, [paymentTokens, paymentToken, repayToken]);
 
   const currentHealthFactor = formatHealthFactor(debtPosition.healthFactor);
 
@@ -201,13 +236,13 @@ export default function CreateSellOrderModal({
               <div>
                 <span className='text-gray-600 dark:text-gray-300'>Total Collateral:</span>
                 <span className='ml-2 font-medium text-gray-900 dark:text-white'>
-                  {formatUSD(debtPosition.totalCollateralBase)}
+                  {formatWeiToUSD(debtPosition.totalCollateralBase)}
                 </span>
               </div>
               <div>
                 <span className='text-gray-600 dark:text-gray-300'>Total Debt:</span>
                 <span className='ml-2 font-medium text-gray-900 dark:text-white'>
-                  {formatUSD(debtPosition.totalDebtBase)}
+                  {formatWeiToUSD(debtPosition.totalDebtBase)}
                 </span>
               </div>
               <div>
@@ -221,13 +256,13 @@ export default function CreateSellOrderModal({
                       : 'text-red-600'
                   }`}
                 >
-                  {currentHealthFactor.toFixed(2)}
+                  {formatHealthFactor(debtPosition.healthFactor)}
                 </span>
               </div>
               <div>
                 <span className='text-gray-600 dark:text-gray-300'>Net Equity:</span>
                 <span className='ml-2 font-medium text-gray-900 dark:text-white'>
-                  {formatUSD(debtPosition.totalCollateralBase - debtPosition.totalDebtBase)}
+                  {formatWeiToUSD(debtPosition.totalCollateralBase - debtPosition.totalDebtBase)}
                 </span>
               </div>
             </div>
@@ -337,7 +372,7 @@ export default function CreateSellOrderModal({
                     className='w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white'
                     disabled={isLoading}
                   >
-                    {PAYMENT_TOKENS.map(token => (
+                    {paymentTokens.map(token => (
                       <option key={token.address} value={token.address}>
                         {token.symbol} - {token.name}
                       </option>
@@ -360,7 +395,7 @@ export default function CreateSellOrderModal({
                     className='w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white'
                     disabled={isLoading}
                   >
-                    {PAYMENT_TOKENS.map(token => (
+                    {paymentTokens.map(token => (
                       <option key={token.address} value={token.address}>
                         {token.symbol} - {token.name}
                       </option>

@@ -1,7 +1,13 @@
 'use client';
 
-import { useState } from 'react';
-import { formatUnits } from 'viem';
+import {
+  formatHealthFactor,
+  formatPreciseHealthFactor,
+  formatPreciseNumber,
+  formatTimeRemaining,
+  truncateAddress,
+} from '@/lib/utils';
+import { useEffect, useState } from 'react';
 import { useAccount, useChainId, useWalletClient } from 'wagmi';
 import CreateDebtModal from '../../components/CreateDebtModal';
 import CreateSellOrderModal from '../../components/CreateSellOrderModal';
@@ -9,16 +15,15 @@ import ManagePositionModal from '../../components/ManagePositionModal';
 import Tooltip from '../../components/Tooltip';
 import { useUserDebtPositions, useUserPositionSummary } from '../../lib/hooks/useDebtPositions';
 import { useLiquidationThresholds } from '../../lib/hooks/useLiquidationThresholds';
+import { useOrderActions, useUserOrders, useUserOrdersSummary } from '../../lib/hooks/useOrders';
 import { usePriceTokens } from '../../lib/hooks/usePriceTokens';
-import { useOrderActions, useUserOrders, useUserOrdersSummary } from '../../lib/hooks/useUserOrders';
 import { CreateFullSellOrderParams, CreatePartialSellOrderParams, UserSellOrder } from '../../lib/types';
-import { formatTimeRemaining, truncateAddress } from '../../lib/utils';
 import { createOrderService } from '../../lib/utils/create-order';
 
 // Component to calculate and display health factor for a single position
 function PositionHealthFactor({ position }: { position: any }) {
   // Use health factor directly from backend data (already in wei format)
-  const healthFactorValue = Number(formatUnits(position.healthFactor, 18));
+  const healthFactorValue = formatHealthFactor(position.healthFactor);
 
   // Determine color and status based on health factor value
   const getHealthFactorDisplay = (value: number) => {
@@ -83,11 +88,12 @@ function PositionHealthFactor({ position }: { position: any }) {
         </Tooltip>
       </h4>
       <div className={`text-2xl font-bold mb-1 ${color} flex items-center gap-2`}>
-        {(Math.floor(healthFactorValue * 100) / 100).toFixed(2)}
+        {healthFactorValue}
         <Tooltip
-          content={`Current Health Factor: ${(Math.floor(healthFactorValue * 100) / 100).toFixed(
+          content={`Current Health Factor: ${healthFactorValue}. Collateral: $${formatPreciseNumber(
+            totalCollateralValue,
             2,
-          )}. Collateral: $${totalCollateralValue.toFixed(2)}, Debt: $${totalDebtValue.toFixed(2)}`}
+          )}, Debt: $${formatPreciseNumber(totalDebtValue, 2)}`}
           maxWidth='lg'
         >
           <svg
@@ -165,6 +171,7 @@ export default function PositionsPage() {
   const [activeTab, setActiveTab] = useState<'positions' | 'orders'>('positions');
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize] = useState(5);
+  const [hasInitiallyLoaded, setHasInitiallyLoaded] = useState(false);
 
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
@@ -183,7 +190,16 @@ export default function PositionsPage() {
   const { calculateUSDValueFromBigInt, formatUSDValue, isLoading: pricesLoading } = usePriceTokens();
   const { isLoading: thresholdsLoading, error: thresholdsError } = useLiquidationThresholds();
 
-  const isLoading = positionsLoading || ordersLoading || pricesLoading || thresholdsLoading;
+  // Track initial loading completion
+  useEffect(() => {
+    if (!positionsLoading && !ordersLoading && !pricesLoading && !thresholdsLoading && !hasInitiallyLoaded) {
+      setHasInitiallyLoaded(true);
+    }
+  }, [positionsLoading, ordersLoading, pricesLoading, thresholdsLoading, hasInitiallyLoaded]);
+
+  // Only show full-page loading on initial load
+  const isInitialLoading =
+    !hasInitiallyLoaded && (positionsLoading || ordersLoading || pricesLoading || thresholdsLoading);
   const error = positionsError || ordersError || thresholdsError;
 
   const handleCreateSellOrder = (position: any) => {
@@ -280,7 +296,7 @@ export default function PositionsPage() {
     );
   }
 
-  if (isLoading) {
+  if (isInitialLoading) {
     return (
       <div className='min-h-screen bg-gray-50 dark:bg-gray-900'>
         <div className='flex items-center justify-center' style={{ minHeight: 'calc(100vh - 4rem)' }}>
@@ -323,10 +339,19 @@ export default function PositionsPage() {
           </button>
         </div>
 
-        {/* Price Status */}
-        {pricesLoading && (
-          <div className='bg-blue-50 border border-blue-200 rounded-lg p-3 mb-6'>
-            <span className='text-sm text-blue-800'>🔄 Loading price data...</span>
+        {/* Subtle Loading Indicators */}
+        {hasInitiallyLoaded && (pricesLoading || positionsLoading || ordersLoading || thresholdsLoading) && (
+          <div className='bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 mb-6'>
+            <div className='flex items-center space-x-2'>
+              <div className='animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600'></div>
+              <span className='text-sm text-blue-800 dark:text-blue-300'>
+                Refreshing data...
+                {pricesLoading && ' (prices)'}
+                {positionsLoading && ' (positions)'}
+                {ordersLoading && ' (orders)'}
+                {thresholdsLoading && ' (thresholds)'}
+              </span>
+            </div>
           </div>
         )}
 
@@ -390,7 +415,7 @@ export default function PositionsPage() {
               <div>
                 <p className='text-sm font-medium text-gray-600 dark:text-gray-400'>Avg Health Factor</p>
                 <p className='text-2xl font-bold text-gray-900 dark:text-white'>
-                  {positionSummary.averageHealthFactor.toFixed(2)}
+                  {formatPreciseHealthFactor(positionSummary.averageHealthFactor, 2)}
                 </p>
               </div>
               <div
@@ -853,7 +878,7 @@ export default function PositionsPage() {
                           <div>
                             <span className='text-sm text-gray-600 dark:text-gray-400'>Trigger Health Factor:</span>
                             <span className='ml-2 font-medium text-gray-900 dark:text-white'>
-                              {order.triggerHealthFactor.toFixed(2)}
+                              {formatPreciseHealthFactor(order.triggerHealthFactor, 2)}
                             </span>
                           </div>
                           <div>
@@ -865,7 +890,7 @@ export default function PositionsPage() {
                                   : 'text-gray-900 dark:text-white'
                               }`}
                             >
-                              {(Math.floor(order.currentHealthFactor * 100) / 100).toFixed(2)}
+                              {formatPreciseHealthFactor(order.currentHealthFactor, 2)}
                               {order.canExecute === 'YES' && ' (Executable)'}
                             </span>
                           </div>

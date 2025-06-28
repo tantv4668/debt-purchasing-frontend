@@ -1,21 +1,44 @@
 'use client';
 
-import { useMarketOrders } from '@/lib/hooks/useMarketOrders';
+import { getAaveRouterAddress } from '@/lib/contracts';
+import { ERC20_ABI } from '@/lib/contracts/abis';
 import { useOrderExecution } from '@/lib/hooks/useOrderExecution';
+import { useMarketOrders } from '@/lib/hooks/useOrders';
+import { usePriceTokens } from '@/lib/hooks/usePriceTokens';
 import { HealthFactorStatus, MarketOrder, OrderType } from '@/lib/types';
-import { formatPercentage, formatTimeRemaining, formatUSD, getHealthFactorStatus, truncateAddress } from '@/lib/utils';
+import {
+  formatPreciseHealthFactor,
+  formatPrecisePercentage,
+  formatPreciseWeiToUSD,
+  formatTimeRemaining,
+  getHealthFactorStatus,
+  truncateAddress,
+} from '@/lib/utils';
 import { useEffect, useState } from 'react';
-import { useAccount } from 'wagmi';
+import { useAccount, usePublicClient, useWriteContract } from 'wagmi';
 
 export default function MarketPage() {
-  const { isConnected } = useAccount();
+  const { isConnected, address, chainId } = useAccount();
   const { orders, isLoading, error, refetch } = useMarketOrders();
   const { executeOrder, isExecuting, executingOrderId } = useOrderExecution();
+  const { getTokenSymbol, isLoading: tokensLoading, tokens } = usePriceTokens();
+  const publicClient = usePublicClient();
+  const { writeContractAsync } = useWriteContract();
 
   const [filteredOrders, setFilteredOrders] = useState<MarketOrder[]>([]);
   const [orderTypeFilter, setOrderTypeFilter] = useState<OrderType | 'all'>('all');
   const [healthFactorFilter, setHealthFactorFilter] = useState<HealthFactorStatus | 'all'>('all');
   const [sortBy, setSortBy] = useState<'healthFactor' | 'profit' | 'timeRemaining'>('healthFactor');
+
+  // Enhanced state for execution options and approvals
+  const [showExecutionModal, setShowExecutionModal] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState<MarketOrder | null>(null);
+  const [approvalStatus, setApprovalStatus] = useState<{
+    paymentToken: { needed: boolean; approved: boolean; amount: bigint };
+    debtTokens: { token: string; needed: boolean; approved: boolean; amount: bigint }[];
+  } | null>(null);
+  const [isCheckingApprovals, setIsCheckingApprovals] = useState(false);
+  const [isApproving, setIsApproving] = useState(false);
 
   useEffect(() => {
     let filtered = orders;
@@ -47,24 +70,174 @@ export default function MarketPage() {
     setFilteredOrders(filtered);
   }, [orders, orderTypeFilter, healthFactorFilter, sortBy]);
 
-  const handleExecuteOrder = async (order: MarketOrder) => {
+  // Debug token data
+  useEffect(() => {
+    if (!tokensLoading && Object.keys(tokens).length > 0) {
+      console.log('🔍 Token data loaded:', tokens);
+      console.log('🔍 Available token addresses:', Object.keys(tokens));
+    }
+  }, [tokens, tokensLoading]);
+
+  // Debug order token addresses
+  useEffect(() => {
+    if (orders.length > 0) {
+      orders.forEach((order, index) => {
+        console.log(`🔍 Order ${index + 1}:`, {
+          paymentToken: order.paymentToken,
+          repayToken: order.repayToken,
+          type: order.type,
+        });
+      });
+    }
+  }, [orders]);
+
+  const checkApprovalStatus = async (order: MarketOrder, autoLiquidate: boolean = false) => {
+    if (!address || !order.paymentToken || !publicClient || !chainId) return;
+
+    setIsCheckingApprovals(true);
+    try {
+      const routerAddress = getAaveRouterAddress(chainId);
+
+      // Calculate payment amount
+      const netEquity = order.debtPosition.totalCollateralBase - order.debtPosition.totalDebtBase;
+      const sellerPercentageBasisPoints = Math.floor(order.percentOfEquity! * 100);
+      const paymentAmount = (netEquity * BigInt(sellerPercentageBasisPoints)) / BigInt(10000);
+
+      // Check payment token allowance
+      const paymentAllowance = (await publicClient.readContract({
+        address: order.paymentToken,
+        abi: ERC20_ABI,
+        functionName: 'allowance',
+        args: [address, routerAddress],
+      })) as bigint;
+
+      const paymentTokenStatus = {
+        needed: paymentAmount > 0,
+        approved: paymentAllowance >= paymentAmount,
+        amount: paymentAmount,
+      };
+
+      // Check debt token allowances (only for auto-liquidation)
+      const debtTokensStatus: { token: string; needed: boolean; approved: boolean; amount: bigint }[] = [];
+
+      if (autoLiquidate) {
+        for (const debt of order.debtPosition.debts) {
+          if (debt.balance > 0) {
+            const debtAllowance = (await publicClient.readContract({
+              address: debt.token,
+              abi: ERC20_ABI,
+              functionName: 'allowance',
+              args: [address, routerAddress],
+            })) as bigint;
+
+            debtTokensStatus.push({
+              token: debt.token,
+              needed: true,
+              approved: debtAllowance >= debt.balance,
+              amount: debt.balance,
+            });
+          }
+        }
+      }
+
+      setApprovalStatus({
+        paymentToken: paymentTokenStatus,
+        debtTokens: debtTokensStatus,
+      });
+    } catch (error) {
+      console.error('Failed to check approval status:', error);
+      // Set a default state to allow users to proceed even if approval check fails
+      setApprovalStatus({
+        paymentToken: { needed: true, approved: false, amount: BigInt(0) },
+        debtTokens: [],
+      });
+    } finally {
+      setIsCheckingApprovals(false);
+    }
+  };
+
+  const handleApproveToken = async (tokenAddress: string, amount: bigint) => {
+    if (!address || !chainId) return;
+
+    setIsApproving(true);
+    try {
+      const routerAddress = getAaveRouterAddress(chainId);
+
+      await writeContractAsync({
+        address: tokenAddress as `0x${string}`,
+        abi: ERC20_ABI,
+        functionName: 'approve',
+        args: [routerAddress, amount],
+      });
+
+      // Refresh approval status
+      if (selectedOrder) {
+        await checkApprovalStatus(selectedOrder, (approvalStatus?.debtTokens?.length || 0) > 0);
+      }
+    } catch (error) {
+      console.error('Failed to approve token:', error);
+    } finally {
+      setIsApproving(false);
+    }
+  };
+
+  const openExecutionModal = async (order: MarketOrder) => {
+    setSelectedOrder(order);
+    setShowExecutionModal(true);
+    await checkApprovalStatus(order, false); // Check for standard purchase first
+  };
+
+  const handleExecutionModeChange = async (autoLiquidate: boolean) => {
+    if (selectedOrder) {
+      await checkApprovalStatus(selectedOrder, autoLiquidate);
+    }
+  };
+
+  const canExecute = () => {
+    if (!approvalStatus) return false;
+
+    const paymentTokenReady = !approvalStatus.paymentToken.needed || approvalStatus.paymentToken.approved;
+    const debtTokensReady = approvalStatus.debtTokens.every(token => !token.needed || token.approved);
+
+    return paymentTokenReady && debtTokensReady;
+  };
+
+  const handleExecuteOrder = async (order: MarketOrder, autoLiquidate: boolean = false) => {
     if (!isConnected) {
-      alert('Please connect your wallet');
+      console.warn('⚠️ Please connect your wallet to execute orders');
       return;
     }
 
     try {
-      console.log('🎯 Starting order execution for:', order.id);
+      console.log('🎯 Starting order execution for:', order.id, 'with auto-liquidation:', autoLiquidate);
 
-      const txHash = await executeOrder(order);
-      console.log('✅ Order execution transaction:', txHash);
+      const options = {
+        autoLiquidate,
+        minProfit: BigInt(0), // Could be configurable in the future
+      };
 
-      alert(`Successfully executed ${order.type} order!\nTransaction: ${txHash}`);
+      const txHash = await executeOrder(order, options);
 
-      // Wait a bit before refreshing to allow blockchain to update
-      setTimeout(() => {
-        refetch();
-      }, 2000);
+      if (order.type === 'full' && autoLiquidate) {
+        console.log('🎉 Successfully executed full sale order with auto-liquidation!');
+        console.log('📋 You now own the debt position and all debts have been repaid with collateral withdrawn.');
+        console.log('🔗 Transaction confirmed:', txHash);
+      } else if (order.type === 'full') {
+        console.log('🎉 Successfully executed full sale order!');
+        console.log('📋 You now own the debt position. You can manage the position from the Positions page.');
+        console.log('🔗 Transaction confirmed:', txHash);
+      } else {
+        console.log('🎉 Successfully executed partial sale order!');
+        console.log("📋 You've helped improve the seller's health factor and received collateral with bonus.");
+        console.log('🔗 Transaction confirmed:', txHash);
+      }
+
+      // Close modal and reset selection only after confirmation
+      setShowExecutionModal(false);
+      setSelectedOrder(null);
+
+      // Refresh orders after confirmation
+      refetch();
     } catch (error) {
       console.error('❌ Failed to execute order:', error);
 
@@ -86,8 +259,17 @@ export default function MarketPage() {
         }
       }
 
-      alert(`Failed to execute order: ${errorMessage}`);
+      console.error('💥 Failed to execute order:', errorMessage);
     }
+  };
+
+  const closeExecutionModal = () => {
+    setShowExecutionModal(false);
+    setSelectedOrder(null);
+  };
+
+  const isOwnOrder = (order: MarketOrder) => {
+    return address && order.seller.toLowerCase() === address.toLowerCase();
   };
 
   const getHealthFactorBadge = (hf: number) => {
@@ -100,8 +282,177 @@ export default function MarketPage() {
     };
     return (
       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${colors[status]}`}>
-        {hf.toFixed(2)} - {status.charAt(0).toUpperCase() + status.slice(1)}
+        {formatPreciseHealthFactor(hf, 2)} - {status.charAt(0).toUpperCase() + status.slice(1)}
       </span>
+    );
+  };
+
+  // Enhanced modal JSX
+  const renderExecutionModal = () => {
+    if (!showExecutionModal || !selectedOrder) return null;
+
+    return (
+      <div className='fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50'>
+        <div className='bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-lg w-full mx-4 p-6 max-h-[90vh] overflow-y-auto'>
+          <h3 className='text-xl font-bold text-gray-900 dark:text-white mb-4'>Execute Full Sale Order</h3>
+
+          <div className='mb-6'>
+            <div className='text-sm text-gray-600 dark:text-gray-400 mb-2'>
+              Order: {selectedOrder.id.slice(0, 8)}... •{' '}
+              {formatPreciseWeiToUSD(selectedOrder.estimatedProfit || BigInt(0))} profit
+            </div>
+            <div className='text-sm text-gray-600 dark:text-gray-400'>
+              You'll pay {formatPrecisePercentage(selectedOrder.percentOfEquity || 0)} of net equity to the seller
+            </div>
+          </div>
+
+          {/* Approval Status Section */}
+          {isCheckingApprovals ? (
+            <div className='mb-6 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg'>
+              <div className='text-sm text-gray-600 dark:text-gray-400'>Checking token approvals...</div>
+            </div>
+          ) : (
+            approvalStatus && (
+              <div className='mb-6'>
+                <h4 className='font-medium text-gray-900 dark:text-white mb-3'>Token Approvals Required</h4>
+
+                {/* Payment Token Approval */}
+                <div className='space-y-2 mb-4'>
+                  <div className='flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg'>
+                    <div className='flex-1'>
+                      <div className='text-sm font-medium text-gray-900 dark:text-white'>
+                        Payment Token ({getTokenSymbol(selectedOrder.paymentToken || '0x')})
+                      </div>
+                      <div className='text-xs text-gray-600 dark:text-gray-400'>
+                        Amount: {formatPreciseWeiToUSD(approvalStatus.paymentToken.amount)}
+                      </div>
+                    </div>
+                    <div className='flex items-center gap-2'>
+                      {approvalStatus.paymentToken.approved ? (
+                        <span className='text-xs bg-green-100 text-green-800 px-2 py-1 rounded'>✓ Approved</span>
+                      ) : (
+                        <button
+                          onClick={() =>
+                            handleApproveToken(selectedOrder.paymentToken!, approvalStatus.paymentToken.amount)
+                          }
+                          disabled={isApproving}
+                          className='text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded disabled:opacity-50'
+                        >
+                          {isApproving ? 'Approving...' : 'Approve'}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Debt Token Approvals (for auto-liquidation) */}
+                {approvalStatus.debtTokens.length > 0 && (
+                  <div className='space-y-2'>
+                    <div className='text-sm font-medium text-gray-900 dark:text-white'>
+                      Debt Token Approvals (for auto-liquidation)
+                    </div>
+                    {approvalStatus.debtTokens.map((debtToken, index) => (
+                      <div
+                        key={index}
+                        className='flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg'
+                      >
+                        <div className='flex-1'>
+                          <div className='text-sm font-medium text-gray-900 dark:text-white'>
+                            {getTokenSymbol(debtToken.token)}
+                          </div>
+                          <div className='text-xs text-gray-600 dark:text-gray-400'>
+                            Amount: {formatPreciseWeiToUSD(debtToken.amount)}
+                          </div>
+                        </div>
+                        <div className='flex items-center gap-2'>
+                          {debtToken.approved ? (
+                            <span className='text-xs bg-green-100 text-green-800 px-2 py-1 rounded'>✓ Approved</span>
+                          ) : (
+                            <button
+                              onClick={() => handleApproveToken(debtToken.token, debtToken.amount)}
+                              disabled={isApproving}
+                              className='text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded disabled:opacity-50'
+                            >
+                              {isApproving ? 'Approving...' : 'Approve'}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )
+          )}
+
+          <div className='space-y-4 mb-6'>
+            <div className='border border-gray-200 dark:border-gray-600 rounded-lg p-4'>
+              <h4 className='font-medium text-gray-900 dark:text-white mb-2'>Option 1: Standard Purchase</h4>
+              <p className='text-sm text-gray-600 dark:text-gray-400 mb-3'>
+                Transfer ownership only. You'll need to manually repay debts and withdraw collateral afterwards.
+              </p>
+              <button
+                onClick={() => {
+                  handleExecutionModeChange(false);
+                  if (canExecute()) {
+                    handleExecuteOrder(selectedOrder, false);
+                  }
+                }}
+                disabled={isExecuting || !canExecute()}
+                className='w-full px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors'
+              >
+                {isExecuting && executingOrderId === selectedOrder.id
+                  ? 'Executing...'
+                  : !canExecute()
+                    ? 'Approve Tokens First'
+                    : 'Standard Purchase'}
+              </button>
+            </div>
+
+            <div className='border border-blue-200 dark:border-blue-600 rounded-lg p-4 bg-blue-50 dark:bg-blue-900/20'>
+              <h4 className='font-medium text-gray-900 dark:text-white mb-2'>
+                Option 2: Auto-Liquidation{' '}
+                <span className='text-xs bg-blue-100 dark:bg-blue-800 text-blue-800 dark:text-blue-200 px-2 py-1 rounded'>
+                  Recommended
+                </span>
+              </h4>
+              <p className='text-sm text-gray-600 dark:text-gray-400 mb-3'>
+                Automatically repay all debts and withdraw all collateral in one transaction. You'll receive the net
+                profit directly.
+              </p>
+              <div className='text-xs text-gray-500 dark:text-gray-400 mb-3'>
+                This executes: Order purchase → Repay all debts → Withdraw all collateral
+              </div>
+              <button
+                onClick={() => {
+                  handleExecutionModeChange(true);
+                  if (canExecute()) {
+                    handleExecuteOrder(selectedOrder, true);
+                  }
+                }}
+                disabled={isExecuting || !canExecute()}
+                className='w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors'
+              >
+                {isExecuting && executingOrderId === selectedOrder.id
+                  ? 'Executing...'
+                  : !canExecute()
+                    ? 'Approve Tokens First'
+                    : 'Auto-Liquidation'}
+              </button>
+            </div>
+          </div>
+
+          <div className='flex gap-3'>
+            <button
+              onClick={closeExecutionModal}
+              disabled={isExecuting}
+              className='flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors'
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
     );
   };
 
@@ -218,59 +569,66 @@ export default function MarketPage() {
                   <div>
                     <span className='text-gray-600 dark:text-gray-400'>Collateral:</span>
                     <span className='ml-2 font-medium text-gray-900 dark:text-white'>
-                      {formatUSD(order.debtPosition.totalCollateralBase)}
+                      {formatPreciseWeiToUSD(order.debtPosition.totalCollateralBase)}
                     </span>
                   </div>
                   <div>
                     <span className='text-gray-600 dark:text-gray-400'>Debt:</span>
                     <span className='ml-2 font-medium text-gray-900 dark:text-white'>
-                      {formatUSD(order.debtPosition.totalDebtBase)}
+                      {formatPreciseWeiToUSD(order.debtPosition.totalDebtBase)}
                     </span>
                   </div>
                   <div>
                     <span className='text-gray-600 dark:text-gray-400'>Net Equity:</span>
                     <span className='ml-2 font-medium text-gray-900 dark:text-white'>
-                      {formatUSD(order.debtPosition.totalCollateralBase - order.debtPosition.totalDebtBase)}
+                      {formatPreciseWeiToUSD(order.debtPosition.totalCollateralBase - order.debtPosition.totalDebtBase)}
                     </span>
                   </div>
                   <div>
                     <span className='text-gray-600 dark:text-gray-400'>Health Factor:</span>
                     <span className='ml-2 font-medium text-gray-900 dark:text-white'>
-                      {order.currentHealthFactor.toFixed(3)}
+                      {formatPreciseHealthFactor(order.currentHealthFactor, 3)}
                     </span>
                   </div>
                 </div>
 
-                {/* Collateral Tokens */}
-                {order.debtPosition.collaterals.length > 0 && (
+                {/* Collateral and Debt Tokens - Compact Layout */}
+                {(order.debtPosition.collaterals.length > 0 || order.debtPosition.debts.length > 0) && (
                   <div className='mt-3 pt-3 border-t border-gray-200 dark:border-gray-600'>
-                    <div className='text-xs text-gray-600 dark:text-gray-400 mb-2'>Collateral Tokens:</div>
-                    <div className='flex flex-wrap gap-1'>
-                      {order.debtPosition.collaterals.map((collateral, index) => (
-                        <span
-                          key={index}
-                          className='px-2 py-1 bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 rounded text-xs'
-                        >
-                          {collateral.symbol} ({formatUSD(collateral.balanceUSD)})
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                    <div className='flex flex-wrap gap-4'>
+                      {/* Collateral Tokens */}
+                      {order.debtPosition.collaterals.length > 0 && (
+                        <div className='flex-1 min-w-0'>
+                          <div className='text-xs text-gray-600 dark:text-gray-400 mb-2'>Collateral:</div>
+                          <div className='flex flex-wrap gap-1'>
+                            {order.debtPosition.collaterals.map((collateral, index) => (
+                              <span
+                                key={index}
+                                className='px-2 py-1 bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 rounded text-xs'
+                              >
+                                {collateral.symbol} ({formatPreciseWeiToUSD(collateral.balanceUSD)})
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
 
-                {/* Debt Tokens */}
-                {order.debtPosition.debts.length > 0 && (
-                  <div className='mt-2'>
-                    <div className='text-xs text-gray-600 dark:text-gray-400 mb-2'>Debt Tokens:</div>
-                    <div className='flex flex-wrap gap-1'>
-                      {order.debtPosition.debts.map((debt, index) => (
-                        <span
-                          key={index}
-                          className='px-2 py-1 bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200 rounded text-xs'
-                        >
-                          {debt.symbol} ({formatUSD(debt.balanceUSD)})
-                        </span>
-                      ))}
+                      {/* Debt Tokens */}
+                      {order.debtPosition.debts.length > 0 && (
+                        <div className='flex-1 min-w-0'>
+                          <div className='text-xs text-gray-600 dark:text-gray-400 mb-2'>Debt:</div>
+                          <div className='flex flex-wrap gap-1'>
+                            {order.debtPosition.debts.map((debt, index) => (
+                              <span
+                                key={index}
+                                className='px-2 py-1 bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200 rounded text-xs'
+                              >
+                                {debt.symbol} ({formatPreciseWeiToUSD(debt.balanceUSD)})
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
@@ -293,14 +651,15 @@ export default function MarketPage() {
                 <div className='flex justify-between'>
                   <span className='text-gray-600 dark:text-gray-400'>Trigger Health Factor:</span>
                   <span className='font-medium text-gray-900 dark:text-white'>
-                    {order.triggerHealthFactor.toFixed(2)}
+                    {formatPreciseHealthFactor(order.triggerHealthFactor, 2)}
                   </span>
                 </div>
 
                 <div className='flex justify-between'>
                   <span className='text-gray-600 dark:text-gray-400'>Current vs Trigger HF:</span>
                   <span className='font-medium text-gray-900 dark:text-white'>
-                    {order.currentHealthFactor.toFixed(3)} / {order.triggerHealthFactor.toFixed(3)}
+                    {formatPreciseHealthFactor(order.currentHealthFactor, 3)} /{' '}
+                    {formatPreciseHealthFactor(order.triggerHealthFactor, 3)}
                     {order.currentHealthFactor === order.triggerHealthFactor && (
                       <span className='text-xs text-gray-500 ml-1'>(estimated)</span>
                     )}
@@ -312,19 +671,19 @@ export default function MarketPage() {
                     <div className='flex justify-between'>
                       <span className='text-gray-600 dark:text-gray-400'>Seller Gets:</span>
                       <span className='font-medium text-gray-900 dark:text-white'>
-                        {formatPercentage(order.percentOfEquity || 0)} of equity
+                        {formatPrecisePercentage(order.percentOfEquity || 0)} of equity
                       </span>
                     </div>
                     <div className='flex justify-between'>
                       <span className='text-gray-600 dark:text-gray-400'>Payment Token:</span>
                       <span className='font-mono text-xs text-gray-900 dark:text-white'>
-                        {truncateAddress(order.paymentToken || '0x')}
+                        {tokensLoading ? 'Loading...' : getTokenSymbol(order.paymentToken || '0x')}
                       </span>
                     </div>
                     <div className='flex justify-between'>
                       <span className='text-gray-600 dark:text-gray-400'>Est. Profit:</span>
                       <span className='font-medium text-green-600 dark:text-green-400'>
-                        {formatUSD(order.estimatedProfit || BigInt(0))}
+                        {formatPreciseWeiToUSD(order.estimatedProfit || BigInt(0))}
                       </span>
                     </div>
                   </>
@@ -335,19 +694,19 @@ export default function MarketPage() {
                     <div className='flex justify-between'>
                       <span className='text-gray-600 dark:text-gray-400'>Repay Amount:</span>
                       <span className='font-medium text-gray-900 dark:text-white'>
-                        {formatUSD(order.repayAmount || BigInt(0))}
+                        {formatPreciseWeiToUSD(order.repayAmount || BigInt(0))}
                       </span>
                     </div>
                     <div className='flex justify-between'>
                       <span className='text-gray-600 dark:text-gray-400'>Repay Token:</span>
                       <span className='font-mono text-xs text-gray-900 dark:text-white'>
-                        {truncateAddress(order.repayToken || '0x')}
+                        {tokensLoading ? 'Loading...' : getTokenSymbol(order.repayToken || '0x')}
                       </span>
                     </div>
                     <div className='flex justify-between'>
                       <span className='text-gray-600 dark:text-gray-400'>Bonus:</span>
                       <span className='font-medium text-green-600 dark:text-green-400'>
-                        {formatPercentage(order.bonus || 0)}
+                        {formatPrecisePercentage(order.bonus || 0)}
                       </span>
                     </div>
                     <div className='flex justify-between'>
@@ -381,17 +740,37 @@ export default function MarketPage() {
               </div>
 
               {/* Action Button */}
-              <button
-                onClick={() => handleExecuteOrder(order)}
-                disabled={!order.isActive || (isExecuting && executingOrderId === order.id)}
-                className='w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors'
-              >
-                {isExecuting && executingOrderId === order.id
-                  ? 'Executing...'
-                  : !order.isActive
-                  ? 'Not Executable'
-                  : `Buy ${order.type === 'full' ? 'Position' : 'Order'}`}
-              </button>
+              <div className='space-y-2'>
+                {isOwnOrder(order) ? (
+                  <button
+                    disabled={true}
+                    className='w-full px-4 py-2 bg-gray-400 text-white rounded-lg opacity-50 cursor-not-allowed'
+                  >
+                    Your Order
+                  </button>
+                ) : order.type === 'partial' ? (
+                  <button
+                    onClick={() => openExecutionModal(order)}
+                    disabled={!order.isActive || isExecuting}
+                    className='w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors'
+                  >
+                    {!order.isActive ? 'Not Executable' : 'Help & Earn Bonus'}
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => openExecutionModal(order)}
+                      disabled={!order.isActive || isExecuting}
+                      className='w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors'
+                    >
+                      {!order.isActive ? 'Not Executable' : 'Buy Position'}
+                    </button>
+                    <div className='text-xs text-gray-500 dark:text-gray-400 text-center'>
+                      Click to choose execution options
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           ))}
         </div>
@@ -408,6 +787,9 @@ export default function MarketPage() {
           </div>
         )}
       </main>
+
+      {/* Replace the existing modal with the enhanced one */}
+      {renderExecutionModal()}
     </div>
   );
 }

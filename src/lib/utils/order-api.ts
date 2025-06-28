@@ -165,7 +165,7 @@ class OrderApiService {
         console.error('❌ Error details:', {
           message: error.message,
           name: error.name,
-          stack: error.stack?.split('\n')[0],
+          stack: error.stack ? error.stack.split('\n')[0] : 'No stack trace',
         });
 
         if (error.message.includes('fetch') || error.message.includes('Network')) {
@@ -294,7 +294,7 @@ class OrderApiService {
       console.error('❌ Error details:', {
         name: error instanceof Error ? error.name : 'Unknown',
         message: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack?.split('\n').slice(0, 3) : 'No stack',
+        stack: error instanceof Error && error.stack ? error.stack.split('\n').slice(0, 3) : 'No stack',
       });
 
       if (error instanceof Error && error.message.includes('Failed to fetch')) {
