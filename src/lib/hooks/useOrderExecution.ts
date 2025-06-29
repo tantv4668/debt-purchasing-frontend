@@ -5,6 +5,7 @@ import { getAaveRouterAddress } from '../contracts';
 import { AAVE_ROUTER_ABI, ERC20_ABI } from '../contracts/abis';
 import { MarketOrder } from '../types';
 import { orderApiService } from '../utils/order-api';
+import { useAavePool } from './useContracts';
 
 export interface ExecuteOrderOptions {
   // For full sale orders: whether to automatically liquidate the position after purchase
@@ -17,6 +18,7 @@ export function useOrderExecution() {
   const { address, chainId } = useAccount();
   const { writeContractAsync } = useWriteContract();
   const publicClient = usePublicClient();
+  const aavePool = useAavePool(chainId);
 
   const [isExecuting, setIsExecuting] = useState(false);
   const [executingOrderId, setExecutingOrderId] = useState<string | null>(null);
@@ -198,50 +200,12 @@ export function useOrderExecution() {
     const debtBalances: { token: Address; amount: bigint }[] = [];
     const collateralBalances: { token: Address; amount: bigint }[] = [];
 
-    // Aave Pool Address (Mainnet)
-    const AAVE_POOL_ADDRESS = '0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2' as Address;
-
     // Get actual debt token balances (variable debt tokens)
     for (const debt of order.debtPosition.debts) {
       if (debt.balance > 0) {
         try {
-          // Get the variable debt token address from Aave Pool
-          const reserveData = (await publicClient!.readContract({
-            address: AAVE_POOL_ADDRESS,
-            abi: [
-              {
-                inputs: [{ name: 'asset', type: 'address' }],
-                name: 'getReserveData',
-                outputs: [
-                  {
-                    name: '',
-                    type: 'tuple',
-                    components: [
-                      { name: 'configuration', type: 'uint256' },
-                      { name: 'liquidityIndex', type: 'uint128' },
-                      { name: 'currentLiquidityRate', type: 'uint128' },
-                      { name: 'variableBorrowIndex', type: 'uint128' },
-                      { name: 'currentVariableBorrowRate', type: 'uint128' },
-                      { name: 'currentStableBorrowRate', type: 'uint128' },
-                      { name: 'lastUpdateTimestamp', type: 'uint40' },
-                      { name: 'id', type: 'uint16' },
-                      { name: 'aTokenAddress', type: 'address' },
-                      { name: 'stableDebtTokenAddress', type: 'address' },
-                      { name: 'variableDebtTokenAddress', type: 'address' },
-                      { name: 'interestRateStrategyAddress', type: 'address' },
-                      { name: 'accruedToTreasury', type: 'uint128' },
-                      { name: 'unbacked', type: 'uint128' },
-                      { name: 'isolationModeTotalDebt', type: 'uint128' },
-                    ],
-                  },
-                ],
-              },
-            ],
-            functionName: 'getReserveData',
-            args: [debt.token],
-          })) as any;
-
-          const variableDebtTokenAddress = reserveData.variableDebtTokenAddress as Address;
+          // Use the proper hook to get token addresses
+          const { variableDebtTokenAddress } = await aavePool.getTokenAddresses(debt.token);
 
           // Get current variable debt balance
           const currentDebtBalance = (await publicClient!.readContract({
@@ -272,43 +236,8 @@ export function useOrderExecution() {
     for (const collateral of order.debtPosition.collaterals) {
       if (collateral.balance > 0) {
         try {
-          // Get the aToken address from Aave Pool
-          const reserveData = (await publicClient!.readContract({
-            address: AAVE_POOL_ADDRESS,
-            abi: [
-              {
-                inputs: [{ name: 'asset', type: 'address' }],
-                name: 'getReserveData',
-                outputs: [
-                  {
-                    name: '',
-                    type: 'tuple',
-                    components: [
-                      { name: 'configuration', type: 'uint256' },
-                      { name: 'liquidityIndex', type: 'uint128' },
-                      { name: 'currentLiquidityRate', type: 'uint128' },
-                      { name: 'variableBorrowIndex', type: 'uint128' },
-                      { name: 'currentVariableBorrowRate', type: 'uint128' },
-                      { name: 'currentStableBorrowRate', type: 'uint128' },
-                      { name: 'lastUpdateTimestamp', type: 'uint40' },
-                      { name: 'id', type: 'uint16' },
-                      { name: 'aTokenAddress', type: 'address' },
-                      { name: 'stableDebtTokenAddress', type: 'address' },
-                      { name: 'variableDebtTokenAddress', type: 'address' },
-                      { name: 'interestRateStrategyAddress', type: 'address' },
-                      { name: 'accruedToTreasury', type: 'uint128' },
-                      { name: 'unbacked', type: 'uint128' },
-                      { name: 'isolationModeTotalDebt', type: 'uint128' },
-                    ],
-                  },
-                ],
-              },
-            ],
-            functionName: 'getReserveData',
-            args: [collateral.token],
-          })) as any;
-
-          const aTokenAddress = reserveData.aTokenAddress as Address;
+          // Use the proper hook to get token addresses
+          const { aTokenAddress } = await aavePool.getTokenAddresses(collateral.token);
 
           // Get current aToken balance
           const currentCollateralBalance = (await publicClient!.readContract({

@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { Address } from 'viem';
 import { useAccount, useWriteContract } from 'wagmi';
-import { ChainId, getAaveRouterAddress } from '../contracts';
+import { ChainId, getAaveRouterAddress, getPoolProxy } from '../contracts';
 import { AAVE_POOL_ABI, AAVE_ROUTER_ABI, ERC20_ABI } from '../contracts/abis';
 import { AAVE_POOL_EXTENSIONS, CONTRACT_DEFAULTS } from '../contracts/config';
 import { SUPPORTED_TOKENS } from '../contracts/tokens';
@@ -230,9 +230,49 @@ export function usePositionManagement(chainId: ChainId = CONTRACT_DEFAULTS.CHAIN
   }, [address, chainId, routerAddress, writeContractAsync]);
 }
 
+// Aave Pool Operations Hook
+export function useAavePool(chainId: ChainId = CONTRACT_DEFAULTS.CHAIN_ID) {
+  const { address } = useAccount();
+  const poolAddress = getPoolProxy(chainId);
+
+  const contract = useContract({
+    address: poolAddress,
+    abi: AAVE_POOL_ABI,
+  });
+
+  return useMemo(() => {
+    const getReserveData = async (asset: Address) => {
+      return contract.read('getReserveData', [asset]);
+    };
+
+    const getUserAccountData = async (user: Address) => {
+      return contract.read('getUserAccountData', [user]);
+    };
+
+    // Helper to get aToken and debt token addresses for an asset
+    const getTokenAddresses = async (asset: Address) => {
+      const reserveData = (await getReserveData(asset)) as any;
+      return {
+        aTokenAddress: reserveData.aTokenAddress as Address,
+        stableDebtTokenAddress: reserveData.stableDebtTokenAddress as Address,
+        variableDebtTokenAddress: reserveData.variableDebtTokenAddress as Address,
+      };
+    };
+
+    return {
+      contract,
+      address: poolAddress,
+      getReserveData,
+      getUserAccountData,
+      getTokenAddresses,
+    };
+  }, [contract, poolAddress]);
+}
+
 export default {
   useContract,
   useTokenOperations,
   useMultiTokenOperations,
   usePositionManagement,
+  useAavePool,
 };

@@ -252,8 +252,8 @@ export default function CreateSellOrderModal({
                     currentHealthFactor >= 2
                       ? 'text-green-600'
                       : currentHealthFactor >= 1.4
-                      ? 'text-yellow-600'
-                      : 'text-red-600'
+                        ? 'text-yellow-600'
+                        : 'text-red-600'
                   }`}
                 >
                   {formatHealthFactor(debtPosition.healthFactor)}
@@ -313,7 +313,7 @@ export default function CreateSellOrderModal({
                 type='number'
                 step='0.1'
                 min='1.1'
-                max={currentHealthFactor.toString()}
+                // max={currentHealthFactor.toString()}
                 value={triggerHealthFactor}
                 onChange={e => setTriggerHealthFactor(e.target.value)}
                 className='w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white'
@@ -495,8 +495,8 @@ export default function CreateSellOrderModal({
                 txStatus.state === 'success'
                   ? 'bg-green-50 text-green-800 dark:bg-green-900/20 dark:text-green-300'
                   : txStatus.state === 'error'
-                  ? 'bg-red-50 text-red-800 dark:bg-red-900/20 dark:text-red-300'
-                  : 'bg-blue-50 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300'
+                    ? 'bg-red-50 text-red-800 dark:bg-red-900/20 dark:text-red-300'
+                    : 'bg-blue-50 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300'
               }`}
             >
               <div className='flex items-center'>

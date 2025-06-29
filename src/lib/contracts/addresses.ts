@@ -21,7 +21,7 @@ export const CONTRACT_ADDRESSES: Record<ChainId, ContractAddresses> = {
     oracleManager: '0x0000000000000000000000000000000000000000', // To be added
   },
   [ChainId.SEPOLIA]: {
-    aaveRouter: '0xd11775250D1B521fB7F245D43efdDcdE955F3AF8',
+    aaveRouter: '0xf73e3938462b560B56C4cD4D59E6C2C3686355F1',
     poolAddressesProvider: '0x2dd7e9422f8aeda720b4d5836f9101794252b798',
     poolProxy: '0x6Ae43d3271ff6888e7Fc43Fd7321a503ff738951',
     poolConfiguratorProxy: '0xa254b63ab427b00a57d6a31a9cb71f20ffa351da',
