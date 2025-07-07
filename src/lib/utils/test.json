@@ -1,0 +1,55 @@
+{
+  "domain": {
+    "name": "AaveRouter",
+    "version": "1",
+    "chainId": "11155111",
+    "verifyingContract": "0xf73e3938462b560b56c4cd4d59e6c2c3686355f1"
+  },
+  "message": {
+    "chainId": "11155111",
+    "contract": "0xf73e3938462b560b56c4cd4d59e6c2c3686355f1",
+    "title": {
+      "debt": "0x2396e4e6e1af61246fec8e95789f4f2b4f4dc52c",
+      "debtNonce": "0",
+      "startTime": "1751452989",
+      "endTime": "1752057789",
+      "triggerHF": "1400000000000000000"
+    },
+    "token": "0x1b8ea7c3b44465be550ebaef50ff6bc5f25ee50c",
+    "percentOfEquity": "9000"
+  },
+  "primaryType": "FullSellOrder",
+  "types": {
+    "EIP712Domain": [
+      { "name": "name", "type": "string" },
+      { "name": "version", "type": "string" },
+      { "name": "chainId", "type": "uint256" },
+      { "name": "verifyingContract", "type": "address" }
+    ],
+    "OrderTitle": [
+      { "name": "debt", "type": "address" },
+      { "name": "debtNonce", "type": "uint256" },
+      { "name": "startTime", "type": "uint256" },
+      { "name": "endTime", "type": "uint256" },
+      { "name": "triggerHF", "type": "uint256" }
+    ],
+    "FullSellOrder": [
+      { "name": "chainId", "type": "uint256" },
+      { "name": "contract", "type": "address" },
+      { "name": "title", "type": "OrderTitle" },
+      { "name": "token", "type": "address" },
+      { "name": "percentOfEquity", "type": "uint256" }
+    ],
+    "PartialSellOrder": [
+      { "name": "chainId", "type": "uint256" },
+      { "name": "contract", "type": "address" },
+      { "name": "title", "type": "OrderTitle" },
+      { "name": "interestRateMode", "type": "uint256" },
+      { "name": "collateralOut", "type": "address[]" },
+      { "name": "percents", "type": "uint256[]" },
+      { "name": "repayToken", "type": "address" },
+      { "name": "repayAmount", "type": "uint256" },
+      { "name": "bonus", "type": "uint256" }
+    ]
+  }
+}

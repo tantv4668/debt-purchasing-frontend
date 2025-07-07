@@ -1,4 +1,4 @@
-import { Address } from 'viem';
+import { Address } from "viem";
 
 // Order Title structure from smart contract
 export interface OrderTitle {
@@ -23,8 +23,7 @@ export interface FullSellOrder {
 export interface PartialSellOrder {
   title: OrderTitle;
   interestRateMode: number; // 1 = stable, 2 = variable
-  collateralOut: string[]; // Array of collateral token addresses
-  percents: number[]; // Array of percentages for each collateral (basis points)
+  collateralOut: string; // Single collateral token address
   repayToken: string; // Token to repay debt with
   repayAmount: bigint; // Amount to repay
   bonus: number; // Basis points bonus for buyer
@@ -34,10 +33,11 @@ export interface PartialSellOrder {
 }
 
 // Frontend-specific order types
-export type OrderType = 'full' | 'partial';
+export type OrderType = "full" | "partial";
 
 export interface CreateFullSellOrderParams {
   debtAddress: string;
+  debtNonce: number; // Current debt nonce from debt position
   triggerHealthFactor: number; // Regular number (e.g., 1.5)
   equityPercentage: number; // Percentage 0-100
   paymentToken: string;
@@ -46,11 +46,12 @@ export interface CreateFullSellOrderParams {
 
 export interface CreatePartialSellOrderParams {
   debtAddress: string;
+  debtNonce: number; // Current debt nonce from debt position
   triggerHealthFactor: number;
   repayToken: string;
   repayAmount: string; // String to handle large numbers
-  collateralTokens: string[];
-  collateralPercentages: number[]; // Percentages that must sum to 100
+  repayTokenDecimals: number; // Decimals of repay token for wei conversion
+  collateralToken: string; // Single collateral token address
   buyerBonus: number; // Percentage 0-100
   validityPeriodHours: number;
 }
@@ -90,7 +91,7 @@ export interface TokenBalance {
 // Market order for display
 export interface MarketOrder {
   id: string;
-  type: 'full' | 'partial';
+  type: "full" | "partial";
   seller: Address;
   debtPosition: {
     address: Address;
@@ -132,7 +133,7 @@ export interface MarketOrder {
   repayToken?: Address;
   repayAmount?: bigint;
   bonus?: number;
-  collateralTokens?: Address[];
+  collateralToken?: Address;
 }
 
 // Order execution result
@@ -145,7 +146,7 @@ export interface OrderExecutionResult {
 }
 
 // Health factor status
-export type HealthFactorStatus = 'safe' | 'warning' | 'danger' | 'critical';
+export type HealthFactorStatus = "safe" | "warning" | "danger" | "critical";
 
 export interface HealthFactorInfo {
   value: number;
@@ -159,12 +160,18 @@ export interface OrderFormErrors {
   percentOfEquity?: string;
   repayAmount?: string;
   validUntil?: string;
-  collateralTokens?: string;
+  collateralToken?: string;
   general?: string;
 }
 
 // Transaction states
-export type TransactionState = 'idle' | 'preparing' | 'signing' | 'pending' | 'success' | 'error';
+export type TransactionState =
+  | "idle"
+  | "preparing"
+  | "signing"
+  | "pending"
+  | "success"
+  | "error";
 
 export interface TransactionStatus {
   state: TransactionState;
@@ -204,13 +211,13 @@ export const MAX_VALIDITY_PERIOD_HOURS = 24 * 30; // 30 days
 export interface UserSellOrder {
   id: string;
   debtAddress: Address;
-  type: 'full' | 'partial';
-  status: 'active' | 'expired' | 'executed' | 'cancelled';
+  type: "full" | "partial";
+  status: "active" | "expired" | "executed" | "cancelled";
   createdAt: Date;
   validUntil: Date;
   triggerHealthFactor: number;
   currentHealthFactor: number;
-  canExecute: 'YES' | 'NO' | string;
+  canExecute: "YES" | "NO" | string;
   // Full sell order specific fields
   percentOfEquity?: number;
   paymentToken?: Address;
@@ -218,8 +225,7 @@ export interface UserSellOrder {
   repayToken?: Address;
   repayAmount?: bigint;
   bonus?: number;
-  collateralTokens?: Address[];
-  collateralPercentages?: number[];
+  collateralToken?: Address; // Single collateral token for partial orders
 }
 
 export interface UserOrdersSummary {

@@ -1,20 +1,20 @@
-import { useEffect, useState } from 'react';
-import { Address } from 'viem';
-import { useAccount, useChainId, useWalletClient } from 'wagmi';
-import { MarketOrder, UserOrdersSummary, UserSellOrder } from '../types';
-import { toPreciseWei } from '../utils';
-import { orderApiService } from '../utils/order-api';
-import { signCancelOrderMessage } from '../utils/order-signing';
-import { formatTokenData, tokenPriceService } from '../utils/token-helpers';
+import { useEffect, useState } from "react";
+import { Address } from "viem";
+import { useAccount, useChainId, useWalletClient } from "wagmi";
+import { MarketOrder, UserOrdersSummary, UserSellOrder } from "../types";
+import { toPreciseWei } from "../utils";
+import { orderApiService } from "../utils/order-api";
+import { signCancelOrderMessage } from "../utils/order-signing";
+import { formatTokenData, tokenPriceService } from "../utils/token-helpers";
 
 // Convert backend order to frontend MarketOrder format (for market view)
 const convertBackendOrderToMarketOrder = async (
   backendOrder: any,
   tokenPrices: Record<string, number>,
-  chainId: number,
+  chainId: number
 ): Promise<MarketOrder | null> => {
   try {
-    const type = backendOrder.orderType === 'FULL' ? 'full' : 'partial';
+    const type = backendOrder.orderType === "FULL" ? "full" : "partial";
 
     // Parse health factor from string (in wei) to number
     const triggerHealthFactor = parseFloat(backendOrder.triggerHF) / 1e18;
@@ -24,22 +24,24 @@ const convertBackendOrderToMarketOrder = async (
     let realCurrentHealthFactor = triggerHealthFactor;
 
     if (debtPositionData?.healthFactor) {
-      realCurrentHealthFactor = parseFloat(debtPositionData.healthFactor) / 1e18;
+      realCurrentHealthFactor =
+        parseFloat(debtPositionData.healthFactor) / 1e18;
     }
 
     // Format collaterals and debts using shared helper
-    const { formattedTokens: collaterals, totalUSD: totalCollateralUSD } = formatTokenData(
-      debtPositionData?.collaterals || [],
-      chainId,
-      tokenPrices,
-      'collateral',
-    );
+    const { formattedTokens: collaterals, totalUSD: totalCollateralUSD } =
+      formatTokenData(
+        debtPositionData?.collaterals || [],
+        chainId,
+        tokenPrices,
+        "collateral"
+      );
 
     const { formattedTokens: debts, totalUSD: totalDebtUSD } = formatTokenData(
       debtPositionData?.debts || [],
       chainId,
       tokenPrices,
-      'debt',
+      "debt"
     );
 
     const baseOrder = {
@@ -52,7 +54,7 @@ const convertBackendOrderToMarketOrder = async (
       isActive: realCurrentHealthFactor <= triggerHealthFactor,
       canExecuteReason:
         realCurrentHealthFactor <= triggerHealthFactor
-          ? 'YES'
+          ? "YES"
           : `NO - HF too high (${realCurrentHealthFactor.toFixed(3)} > ${triggerHealthFactor.toFixed(3)})`,
       debtPosition: {
         address: backendOrder.debtAddress as Address,
@@ -71,10 +73,12 @@ const convertBackendOrderToMarketOrder = async (
       },
     };
 
-    if (type === 'full') {
+    if (type === "full") {
       const fullOrder = backendOrder.fullSellOrder;
       if (!fullOrder) {
-        throw new Error(`Full sell order data missing for order ${backendOrder.id}`);
+        throw new Error(
+          `Full sell order data missing for order ${backendOrder.id}`
+        );
       }
 
       const netEquity = totalCollateralUSD - totalDebtUSD;
@@ -84,7 +88,7 @@ const convertBackendOrderToMarketOrder = async (
 
       return {
         ...baseOrder,
-        type: 'full',
+        type: "full",
         percentOfEquity: parseInt(fullOrder.percentOfEquity) / 100,
         paymentToken: fullOrder.token as Address,
         estimatedProfit: toPreciseWei(estimatedProfit), // Precise conversion to bigint with 18 decimals
@@ -92,7 +96,9 @@ const convertBackendOrderToMarketOrder = async (
     } else {
       const partialOrder = backendOrder.partialSellOrder;
       if (!partialOrder) {
-        throw new Error(`Partial sell order data missing for order ${backendOrder.id}`);
+        throw new Error(
+          `Partial sell order data missing for order ${backendOrder.id}`
+        );
       }
 
       const repayAmount = BigInt(partialOrder.repayAmount);
@@ -104,7 +110,7 @@ const convertBackendOrderToMarketOrder = async (
 
       return {
         ...baseOrder,
-        type: 'partial',
+        type: "partial",
         repayToken: partialOrder.repayToken as Address,
         repayAmount,
         bonus: bonusPercentage,
@@ -113,15 +119,21 @@ const convertBackendOrderToMarketOrder = async (
       };
     }
   } catch (error) {
-    console.error('Error converting order to MarketOrder:', error);
+    console.error("Error converting order to MarketOrder:", error);
     return null;
   }
 };
 
 // Convert backend order to frontend UserSellOrder format (for user orders view)
-const convertBackendOrderToUserSellOrder = (backendOrder: any): UserSellOrder => {
-  const type = backendOrder.orderType === 'FULL' ? 'full' : 'partial';
-  const status = backendOrder.status.toLowerCase() as 'active' | 'expired' | 'executed' | 'cancelled';
+const convertBackendOrderToUserSellOrder = (
+  backendOrder: any
+): UserSellOrder => {
+  const type = backendOrder.orderType === "FULL" ? "full" : "partial";
+  const status = backendOrder.status.toLowerCase() as
+    | "active"
+    | "expired"
+    | "executed"
+    | "cancelled";
 
   // Use health factor from debt position data if available, otherwise fallback
   const debtPositionData = backendOrder.debtPosition;
@@ -142,26 +154,29 @@ const convertBackendOrderToUserSellOrder = (backendOrder: any): UserSellOrder =>
     validUntil: new Date(backendOrder.endTime),
     triggerHealthFactor: parseFloat(backendOrder.triggerHF) / 1e18, // Convert from wei
     currentHealthFactor: parseFloat(currentHF) / 1e18, // Convert from wei
-    canExecute: backendOrder.canExecute || 'NO', // Backend's execution status
+    canExecute: backendOrder.canExecute || "NO", // Backend's execution status
   };
 
-  if (type === 'full') {
+  if (type === "full") {
     const fullOrder = backendOrder.fullSellOrder;
 
     if (fullOrder) {
       return {
         ...baseOrder,
-        type: 'full',
+        type: "full",
         percentOfEquity: parseInt(fullOrder.percentOfEquity) / 100, // Convert from basis points
         paymentToken: fullOrder.token as Address,
       };
     } else {
-      console.warn('Full sell order missing nested data for order:', backendOrder.id);
+      console.warn(
+        "Full sell order missing nested data for order:",
+        backendOrder.id
+      );
       return {
         ...baseOrder,
-        type: 'full',
+        type: "full",
         percentOfEquity: 0,
-        paymentToken: '0x0000000000000000000000000000000000000000' as Address,
+        paymentToken: "0x0000000000000000000000000000000000000000" as Address,
       };
     }
   } else {
@@ -170,23 +185,25 @@ const convertBackendOrderToUserSellOrder = (backendOrder: any): UserSellOrder =>
     if (partialOrder) {
       return {
         ...baseOrder,
-        type: 'partial',
+        type: "partial",
         repayToken: partialOrder.repayToken as Address,
         repayAmount: BigInt(partialOrder.repayAmount),
         bonus: parseInt(partialOrder.bonus) / 100, // Convert from basis points
-        collateralTokens: partialOrder.collateralOut as Address[],
-        collateralPercentages: partialOrder.percents.map((p: string) => parseInt(p) / 100),
+        collateralToken: partialOrder.collateralOut as Address,
       };
     } else {
-      console.warn('Partial sell order missing nested data for order:', backendOrder.id);
+      console.warn(
+        "Partial sell order missing nested data for order:",
+        backendOrder.id
+      );
       return {
         ...baseOrder,
-        type: 'partial',
-        repayToken: '0x0000000000000000000000000000000000000000' as Address,
+        type: "partial",
+        repayToken: "0x0000000000000000000000000000000000000000" as Address,
         repayAmount: BigInt(0),
         bonus: 0,
-        collateralTokens: [],
-        collateralPercentages: [],
+        collateralToken:
+          "0x0000000000000000000000000000000000000000" as Address,
       };
     }
   }
@@ -210,32 +227,34 @@ export function useMarketOrders() {
       // Fetch all active orders
       const response = await orderApiService.getOrders({
         chainId,
-        status: 'ACTIVE',
+        status: "ACTIVE",
         limit: 100,
       });
 
       if (!response.orders || response.orders.length === 0) {
-        setError('No orders available at the moment.');
+        setError("No orders available at the moment.");
         setOrders([]);
         return;
       }
 
-      const convertedOrdersPromises = response.orders.map(order =>
-        convertBackendOrderToMarketOrder(order, tokenPrices, chainId),
+      const convertedOrdersPromises = response.orders.map((order) =>
+        convertBackendOrderToMarketOrder(order, tokenPrices, chainId)
       );
 
-      const convertedOrders = (await Promise.all(convertedOrdersPromises)).filter(
-        (order): order is MarketOrder => order !== null,
-      );
+      const convertedOrders = (
+        await Promise.all(convertedOrdersPromises)
+      ).filter((order): order is MarketOrder => order !== null);
 
       setOrders(convertedOrders);
 
       if (convertedOrders.length === 0 && response.orders.length > 0) {
-        setError('Unable to process order data.');
+        setError("Unable to process order data.");
       }
     } catch (err) {
-      console.error('Failed to fetch market orders:', err);
-      setError('Unable to connect to the server. Please check your connection and try again.');
+      console.error("Failed to fetch market orders:", err);
+      setError(
+        "Unable to connect to the server. Please check your connection and try again."
+      );
       setOrders([]);
     } finally {
       setIsLoading(false);
@@ -277,11 +296,13 @@ export function useUserOrders() {
         limit: 50, // Fetch more orders for user
       });
 
-      const convertedOrders = response.orders.map(convertBackendOrderToUserSellOrder);
+      const convertedOrders = response.orders.map(
+        convertBackendOrderToUserSellOrder
+      );
       setOrders(convertedOrders);
     } catch (err) {
-      console.error('Failed to fetch user orders:', err);
-      setError(err instanceof Error ? err.message : 'Failed to load orders');
+      console.error("Failed to fetch user orders:", err);
+      setError(err instanceof Error ? err.message : "Failed to load orders");
       setOrders([]);
     } finally {
       setIsLoading(false);
@@ -301,9 +322,10 @@ export function useUserOrdersSummary(): UserOrdersSummary {
 
   const summary = {
     totalOrders: orders.length,
-    activeOrders: orders.filter(order => order.status === 'active').length,
-    expiredOrders: orders.filter(order => order.status === 'expired').length,
-    executedOrders: orders.filter(order => order.status === 'executed').length,
+    activeOrders: orders.filter((order) => order.status === "active").length,
+    expiredOrders: orders.filter((order) => order.status === "expired").length,
+    executedOrders: orders.filter((order) => order.status === "executed")
+      .length,
     totalPotentialValue: 0, // Would calculate based on position values
   };
 
@@ -317,18 +339,21 @@ export function useOrderActions() {
 
   const cancelOrder = async (orderId: string) => {
     if (!address) {
-      throw new Error('Wallet not connected');
+      throw new Error("Wallet not connected");
     }
 
     if (!walletClient) {
-      throw new Error('Wallet client not available');
+      throw new Error("Wallet client not available");
     }
 
-    console.log('🔄 useOrderActions.cancelOrder called:', { orderId, address });
+    console.log("🔄 useOrderActions.cancelOrder called:", { orderId, address });
 
     try {
       // Sign the cancel message
-      const { message, signature } = await signCancelOrderMessage(orderId, walletClient);
+      const { message, signature } = await signCancelOrderMessage(
+        orderId,
+        walletClient
+      );
 
       const cancelRequest = {
         seller: address,
@@ -337,24 +362,24 @@ export function useOrderActions() {
       };
 
       const result = await orderApiService.cancelOrder(orderId, cancelRequest);
-      console.log('📥 cancelOrder API result:', result);
+      console.log("📥 cancelOrder API result:", result);
 
       if (!result.success) {
-        console.error('❌ API returned error:', result.error);
-        throw new Error(result.error || 'Failed to cancel order');
+        console.error("❌ API returned error:", result.error);
+        throw new Error(result.error || "Failed to cancel order");
       }
 
-      console.log('✅ Order cancelled successfully:', result.message);
+      console.log("✅ Order cancelled successfully:", result.message);
       return result;
     } catch (error) {
-      console.error('❌ useOrderActions.cancelOrder error:', error);
+      console.error("❌ useOrderActions.cancelOrder error:", error);
       throw error;
     }
   };
 
   const createSellOrder = async (orderData: Partial<UserSellOrder>) => {
-    console.log('Creating sell order:', orderData);
-    throw new Error('Create sell order moved to modal implementation');
+    console.log("Creating sell order:", orderData);
+    throw new Error("Create sell order moved to modal implementation");
   };
 
   return {

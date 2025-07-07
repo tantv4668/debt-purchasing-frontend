@@ -1,9 +1,16 @@
-import { WalletClient } from 'viem';
-import { getContractAddress } from '../contracts/addresses';
-import { ChainId } from '../contracts/chains';
-import { CreateFullSellOrderParams, CreatePartialSellOrderParams } from '../types';
-import { CreateOrderRequest, orderApiService } from './order-api';
-import { getCurrentDebtNonce, signFullSellOrder, signPartialSellOrder } from './order-signing';
+import { WalletClient } from "viem";
+import { getContractAddress } from "../contracts/addresses";
+import { ChainId } from "../contracts/chains";
+import {
+  CreateFullSellOrderParams,
+  CreatePartialSellOrderParams,
+} from "../types";
+import { CreateOrderRequest, orderApiService } from "./order-api";
+import {
+  getCurrentDebtNonce,
+  signFullSellOrder,
+  signPartialSellOrder,
+} from "./order-signing";
 
 interface CreateOrderServiceOptions {
   chainId: number;
@@ -23,10 +30,13 @@ export class CreateOrderService {
   }
 
   async createFullSellOrder(params: CreateFullSellOrderParams) {
-    const contractAddress = getContractAddress(this.chainId as ChainId, 'aaveRouter');
+    const contractAddress = getContractAddress(
+      this.chainId as ChainId,
+      "aaveRouter"
+    );
 
-    // Get current debt nonce
-    const debtNonce = await getCurrentDebtNonce(params.debtAddress);
+    // Get current debt nonce from debt position data
+    const debtNonce = params.debtNonce || 0;
 
     // Convert times to unix timestamps
     const now = Math.floor(Date.now() / 1000);
@@ -49,11 +59,16 @@ export class CreateOrderService {
     };
 
     // Sign the order
-    const signedOrder = await signFullSellOrder(this.chainId, contractAddress, unsignedOrder, this.walletClient);
+    const signedOrder = await signFullSellOrder(
+      this.chainId,
+      contractAddress,
+      unsignedOrder,
+      this.walletClient
+    );
 
     // Create API request
     const orderRequest: CreateOrderRequest = {
-      orderType: 'FULL',
+      orderType: "FULL",
       chainId: this.chainId,
       contractAddress,
       seller: this.seller,
@@ -65,10 +80,13 @@ export class CreateOrderService {
   }
 
   async createPartialSellOrder(params: CreatePartialSellOrderParams) {
-    const contractAddress = getContractAddress(this.chainId as ChainId, 'aaveRouter');
+    const contractAddress = getContractAddress(
+      this.chainId as ChainId,
+      "aaveRouter"
+    );
 
-    // Get current debt nonce
-    const debtNonce = await getCurrentDebtNonce(params.debtAddress);
+    // Get current debt nonce from debt position data
+    const debtNonce = params.debtNonce || 0;
 
     // Convert times to unix timestamps
     const now = Math.floor(Date.now() / 1000);
@@ -77,11 +95,12 @@ export class CreateOrderService {
 
     // Convert values to correct format
     const triggerHF = (params.triggerHealthFactor * 1e18).toString(); // Convert to wei
-    const percents = params.collateralPercentages.map(p => (p * 100).toString()); // Convert to basis points
     const bonus = (params.buyerBonus * 100).toString(); // Convert to basis points
 
-    // Parse repay amount (assuming it's a string representation of the amount)
-    const repayAmount = params.repayAmount;
+    // Convert repay amount to wei format using provided decimals
+    const repayAmountWei = (
+      parseFloat(params.repayAmount) * Math.pow(10, params.repayTokenDecimals)
+    ).toString();
 
     // Create unsigned order
     const unsignedOrder = {
@@ -91,19 +110,23 @@ export class CreateOrderService {
       endTime,
       triggerHF,
       interestRateMode: 2, // Variable rate (typical for Aave)
-      collateralOut: params.collateralTokens,
-      percents,
+      collateralOut: params.collateralToken,
       repayToken: params.repayToken,
-      repayAmount,
+      repayAmount: repayAmountWei,
       bonus,
     };
 
     // Sign the order
-    const signedOrder = await signPartialSellOrder(this.chainId, contractAddress, unsignedOrder, this.walletClient);
+    const signedOrder = await signPartialSellOrder(
+      this.chainId,
+      contractAddress,
+      unsignedOrder,
+      this.walletClient
+    );
 
     // Create API request
     const orderRequest: CreateOrderRequest = {
-      orderType: 'PARTIAL',
+      orderType: "PARTIAL",
       chainId: this.chainId,
       contractAddress,
       seller: this.seller,
@@ -116,6 +139,8 @@ export class CreateOrderService {
 }
 
 // Factory function for easier usage
-export function createOrderService(options: CreateOrderServiceOptions): CreateOrderService {
+export function createOrderService(
+  options: CreateOrderServiceOptions
+): CreateOrderService {
   return new CreateOrderService(options);
 }

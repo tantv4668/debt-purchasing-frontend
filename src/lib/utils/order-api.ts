@@ -1,6 +1,6 @@
 // Backend API types
 export interface CreateOrderRequest {
-  orderType: 'FULL' | 'PARTIAL';
+  orderType: "FULL" | "PARTIAL";
   chainId: number;
   contractAddress: string;
   seller: string;
@@ -34,8 +34,7 @@ export interface PartialSellOrderData {
   endTime: number;
   triggerHF: string;
   interestRateMode: number;
-  collateralOut: string[];
-  percents: string[];
+  collateralOut: string;
   repayToken: string;
   repayAmount: string;
   bonus: string;
@@ -53,7 +52,7 @@ export interface ApiResponse<T = any> {
 
 export interface OrderResponse {
   id: string;
-  orderType: 'FULL' | 'PARTIAL';
+  orderType: "FULL" | "PARTIAL";
   status: string;
   debtAddress: string;
   seller: string;
@@ -65,30 +64,32 @@ export interface OrderResponse {
 
 // Configuration - Fixed port to match backend config (3002)
 // Ensure we strip any trailing /api to prevent duplication
-const API_BASE_URL = (process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3002').replace(/\/api$/, '');
+const API_BASE_URL = (
+  process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3002"
+).replace(/\/api$/, "");
 
 class OrderApiService {
   private baseUrl: string;
 
   constructor(baseUrl: string = API_BASE_URL) {
     this.baseUrl = baseUrl;
-    console.log('🔧 OrderApiService initialized with URL:', this.baseUrl);
+    console.log("🔧 OrderApiService initialized with URL:", this.baseUrl);
   }
 
   async createOrder(orderData: CreateOrderRequest): Promise<OrderResponse> {
     const url = `${this.baseUrl}/api/orders`;
-    console.log('📤 Creating order at URL:', url);
+    console.log("📤 Creating order at URL:", url);
 
     try {
       const response = await fetch(url, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify(orderData),
       });
 
-      console.log('📥 Response status:', response.status, response.statusText);
+      console.log("📥 Response status:", response.status, response.statusText);
 
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -97,19 +98,19 @@ class OrderApiService {
       const result: ApiResponse<OrderResponse> = await response.json();
 
       if (!result.success) {
-        throw new Error(result.error || 'Failed to create order');
+        throw new Error(result.error || "Failed to create order");
       }
 
       if (!result.data) {
-        throw new Error('No data returned from API');
+        throw new Error("No data returned from API");
       }
 
       return result.data;
     } catch (error) {
-      console.error('❌ Order creation failed:', error);
-      if (error instanceof Error && error.message.includes('fetch')) {
+      console.error("❌ Order creation failed:", error);
+      if (error instanceof Error && error.message.includes("fetch")) {
         throw new Error(
-          `Backend server not available at ${this.baseUrl}. Make sure the backend is running with: cd debt-purchasing-backend && npm run dev`,
+          `Backend server not available at ${this.baseUrl}. Make sure the backend is running with: cd debt-purchasing-backend && npm run dev`
         );
       }
       throw error;
@@ -136,41 +137,50 @@ class OrderApiService {
     }
 
     const url = `${this.baseUrl}/api/orders?${queryParams}`;
-    console.log('📤 Fetching orders from URL:', url);
-    console.log('📊 Query params:', params);
+    console.log("📤 Fetching orders from URL:", url);
+    console.log("📊 Query params:", params);
 
     try {
       const response = await fetch(url);
 
-      console.log('📥 Response status:', response.status, response.statusText);
-      console.log('📥 Response URL:', response.url);
+      console.log("📥 Response status:", response.status, response.statusText);
+      console.log("📥 Response URL:", response.url);
 
       if (!response.ok) {
         const responseText = await response.text();
-        console.error('❌ Response body:', responseText);
-        throw new Error(`HTTP ${response.status}: ${response.statusText}. Response: ${responseText}`);
+        console.error("❌ Response body:", responseText);
+        throw new Error(
+          `HTTP ${response.status}: ${response.statusText}. Response: ${responseText}`
+        );
       }
 
       const result: ApiResponse = await response.json();
-      console.log('✅ Orders fetched successfully:', result.data?.orders?.length || 0, 'orders');
+      console.log(
+        "✅ Orders fetched successfully:",
+        result.data?.orders?.length || 0,
+        "orders"
+      );
 
       if (!result.success) {
-        throw new Error(result.error || 'Failed to fetch orders');
+        throw new Error(result.error || "Failed to fetch orders");
       }
 
       return result.data;
     } catch (error) {
-      console.error('❌ Get orders failed:', error);
+      console.error("❌ Get orders failed:", error);
       if (error instanceof Error) {
-        console.error('❌ Error details:', {
+        console.error("❌ Error details:", {
           message: error.message,
           name: error.name,
-          stack: error.stack ? error.stack.split('\n')[0] : 'No stack trace',
+          stack: error.stack ? error.stack.split("\n")[0] : "No stack trace",
         });
 
-        if (error.message.includes('fetch') || error.message.includes('Network')) {
+        if (
+          error.message.includes("fetch") ||
+          error.message.includes("Network")
+        ) {
           throw new Error(
-            `Backend server not available at ${this.baseUrl}. Please verify:\n1. Backend is running: cd debt-purchasing-backend && npm run dev\n2. Backend URL is correct: ${this.baseUrl}\n3. No CORS issues in browser console`,
+            `Backend server not available at ${this.baseUrl}. Please verify:\n1. Backend is running: cd debt-purchasing-backend && npm run dev\n2. Backend URL is correct: ${this.baseUrl}\n3. No CORS issues in browser console`
           );
         }
       }
@@ -195,12 +205,12 @@ class OrderApiService {
     }
 
     const url = `${this.baseUrl}/api/orders/active?${queryParams}`;
-    console.log('📤 Fetching active orders from URL:', url);
+    console.log("📤 Fetching active orders from URL:", url);
 
     try {
       const response = await fetch(url);
 
-      console.log('📥 Response status:', response.status, response.statusText);
+      console.log("📥 Response status:", response.status, response.statusText);
 
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -209,14 +219,14 @@ class OrderApiService {
       const result: ApiResponse = await response.json();
 
       if (!result.success) {
-        throw new Error(result.error || 'Failed to fetch active orders');
+        throw new Error(result.error || "Failed to fetch active orders");
       }
 
       return result.data;
     } catch (error) {
-      if (error instanceof Error && error.message.includes('fetch')) {
+      if (error instanceof Error && error.message.includes("fetch")) {
         throw new Error(
-          `Backend server not available at ${this.baseUrl}. Make sure the backend is running with: cd debt-purchasing-backend && npm run dev`,
+          `Backend server not available at ${this.baseUrl}. Make sure the backend is running with: cd debt-purchasing-backend && npm run dev`
         );
       }
       throw error;
@@ -225,12 +235,12 @@ class OrderApiService {
 
   async getOrderById(orderId: string): Promise<any> {
     const url = `${this.baseUrl}/api/orders/${orderId}`;
-    console.log('📤 Fetching order by ID from URL:', url);
+    console.log("📤 Fetching order by ID from URL:", url);
 
     try {
       const response = await fetch(url);
 
-      console.log('📥 Response status:', response.status, response.statusText);
+      console.log("📥 Response status:", response.status, response.statusText);
 
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -239,14 +249,14 @@ class OrderApiService {
       const result: ApiResponse = await response.json();
 
       if (!result.success) {
-        throw new Error(result.error || 'Failed to fetch order');
+        throw new Error(result.error || "Failed to fetch order");
       }
 
       return result.data;
     } catch (error) {
-      if (error instanceof Error && error.message.includes('fetch')) {
+      if (error instanceof Error && error.message.includes("fetch")) {
         throw new Error(
-          `Backend server not available at ${this.baseUrl}. Make sure the backend is running with: cd debt-purchasing-backend && npm run dev`,
+          `Backend server not available at ${this.baseUrl}. Make sure the backend is running with: cd debt-purchasing-backend && npm run dev`
         );
       }
       throw error;
@@ -258,20 +268,24 @@ class OrderApiService {
    */
   async cancelOrder(
     orderId: string,
-    cancelRequest: CancelOrderRequest,
+    cancelRequest: CancelOrderRequest
   ): Promise<{ success: boolean; message?: string; error?: string }> {
     const url = `${this.baseUrl}/api/orders/${orderId}/cancel`;
-    console.log('🔄 Attempting to cancel order:', { orderId, seller: cancelRequest.seller, url });
+    console.log("🔄 Attempting to cancel order:", {
+      orderId,
+      seller: cancelRequest.seller,
+      url,
+    });
     try {
       const response = await fetch(url, {
-        method: 'PATCH',
+        method: "PATCH",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify(cancelRequest),
       });
 
-      console.log('📥 Cancel order response:', {
+      console.log("📥 Cancel order response:", {
         status: response.status,
         statusText: response.statusText,
         url: response.url,
@@ -279,7 +293,7 @@ class OrderApiService {
       });
 
       const data = await response.json();
-      console.log('📄 Cancel order response data:', data);
+      console.log("📄 Cancel order response data:", data);
 
       if (!response.ok) {
         throw new Error(data.error || `HTTP error! status: ${response.status}`);
@@ -287,27 +301,31 @@ class OrderApiService {
 
       return {
         success: data.success,
-        message: data.data?.message || 'Order cancelled successfully',
+        message: data.data?.message || "Order cancelled successfully",
       };
     } catch (error) {
-      console.error('❌ Failed to cancel order:', error);
-      console.error('❌ Error details:', {
-        name: error instanceof Error ? error.name : 'Unknown',
+      console.error("❌ Failed to cancel order:", error);
+      console.error("❌ Error details:", {
+        name: error instanceof Error ? error.name : "Unknown",
         message: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error && error.stack ? error.stack.split('\n').slice(0, 3) : 'No stack',
+        stack:
+          error instanceof Error && error.stack
+            ? error.stack.split("\n").slice(0, 3)
+            : "No stack",
       });
 
-      if (error instanceof Error && error.message.includes('Failed to fetch')) {
-        console.error('❌ Network connectivity issue detected');
-        console.error('❌ Please check:');
-        console.error('   1. Backend is running on', this.baseUrl);
-        console.error('   2. No CORS errors in browser console');
-        console.error('   3. Network connectivity is working');
+      if (error instanceof Error && error.message.includes("Failed to fetch")) {
+        console.error("❌ Network connectivity issue detected");
+        console.error("❌ Please check:");
+        console.error("   1. Backend is running on", this.baseUrl);
+        console.error("   2. No CORS errors in browser console");
+        console.error("   3. Network connectivity is working");
       }
 
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Failed to cancel order',
+        error:
+          error instanceof Error ? error.message : "Failed to cancel order",
       };
     }
   }

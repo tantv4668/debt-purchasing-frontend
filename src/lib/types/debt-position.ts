@@ -1,4 +1,4 @@
-import type { TokenSymbol } from '../contracts';
+import type { TokenSymbol } from "../contracts";
 
 // Re-export TokenSymbol for components
 export type { TokenSymbol };
@@ -6,7 +6,8 @@ export type { TokenSymbol };
 export interface DebtPosition {
   address: `0x${string}`;
   owner: `0x${string}`;
-  nonce: number;
+  nonce: number; // Current debt nonce for order validation
+  totalPositions: number;
   totalCollateralBase: bigint;
   totalDebtBase: bigint;
   availableBorrowsBase: bigint;
@@ -77,7 +78,7 @@ export interface UserPositionSummary {
 }
 
 // Health factor status
-export type HealthFactorStatus = 'safe' | 'warning' | 'danger' | 'liquidation';
+export type HealthFactorStatus = "safe" | "warning" | "danger" | "liquidation";
 
 export interface HealthFactorInfo {
   value: number;
@@ -88,7 +89,13 @@ export interface HealthFactorInfo {
 
 // Position creation flow state
 export interface PositionCreationState {
-  step: 'select-assets' | 'set-amounts' | 'review' | 'pending' | 'success' | 'error';
+  step:
+    | "select-assets"
+    | "set-amounts"
+    | "review"
+    | "pending"
+    | "success"
+    | "error";
   collateralAssets: Array<{
     asset: TokenSymbol;
     amount: string;
@@ -107,7 +114,13 @@ export interface PositionCreationState {
 
 // Legacy single-collateral state for backward compatibility
 export interface SingleCollateralPositionCreationState {
-  step: 'select-assets' | 'set-amounts' | 'review' | 'pending' | 'success' | 'error';
+  step:
+    | "select-assets"
+    | "set-amounts"
+    | "review"
+    | "pending"
+    | "success"
+    | "error";
   collateralAsset?: `0x${string}`;
   borrowAsset?: `0x${string}`;
   collateralAmount?: string;
