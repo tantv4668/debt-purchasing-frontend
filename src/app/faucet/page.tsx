@@ -4,10 +4,13 @@ import { useState } from "react";
 import { useAccount, useChainId } from "wagmi";
 import { ChainId } from "@/lib/contracts/chains";
 import { getToken, getTokenAddress } from "@/lib/contracts/tokens";
-import { useWriteContract, useWaitForTransactionReceipt } from "wagmi";
+import { useWriteContract } from "wagmi";
 import { parseUnits } from "viem";
 import MintableABI from "@/lib/contracts/abis/Mintable.json";
 import ImportantNotesWarning from "@/components/ImportantNotesWarning";
+import { useTransactionHandler } from "@/lib/hooks/useTransactionHandler";
+import { FullScreenTransactionOverlay } from "@/components/FullScreenTransactionOverlay";
+import TransactionConfirmationPopup from "@/components/TransactionConfirmationPopup";
 
 interface FaucetToken {
   symbol: string;
@@ -44,10 +47,26 @@ export default function FaucetPage() {
     FAUCET_TOKENS[0]
   );
   const [isMinting, setIsMinting] = useState(false);
+  const [usePopup, setUsePopup] = useState(false); // New state for popup vs full-screen
 
   const { writeContract, data: hash, error } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
+
+  // Enhanced transaction handler with auto-refresh but no database sync
+  const transactionHandler = useTransactionHandler({
     hash,
+    onSuccess: () => {
+      // Token minting completed, refreshing page
+      // Optional: reload the page after successful transaction
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
+    },
+    onError: (error) => {
+      console.error("Token minting failed:", error);
+    },
+    enableAutoRefresh: false, // No auto-refresh delay
+    refreshDelay: 0, // No delay needed
+    showFullScreenOverlay: !usePopup, // Toggle between popup and full-screen
   });
 
   const isSepoliaNetwork = chainId === ChainId.SEPOLIA;
@@ -233,13 +252,28 @@ export default function FaucetPage() {
               </div>
             </div>
 
+            {/* UI Toggle */}
+            <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+              <label className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  checked={usePopup}
+                  onChange={(e) => setUsePopup(e.target.checked)}
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-sm text-gray-700 dark:text-gray-300">
+                  Use popup instead of full-screen overlay
+                </span>
+              </label>
+            </div>
+
             {/* Mint Button */}
             <button
               onClick={handleMintToken}
-              disabled={isMinting || isConfirming}
+              disabled={isMinting || transactionHandler.isLoading}
               className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-medium py-3 px-4 rounded-lg transition-colors disabled:cursor-not-allowed"
             >
-              {isMinting || isConfirming ? (
+              {isMinting || transactionHandler.isLoading ? (
                 <div className="flex items-center justify-center">
                   <svg
                     className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
@@ -261,33 +295,68 @@ export default function FaucetPage() {
                       d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                     ></path>
                   </svg>
-                  {isConfirming ? "Confirming..." : "Minting..."}
+                  {transactionHandler.isWaitingForReceipt
+                    ? "Confirming..."
+                    : "Minting..."}
                 </div>
               ) : (
                 `Mint ${MINT_AMOUNTS[selectedToken.symbol as keyof typeof MINT_AMOUNTS]} ${selectedToken.symbol}`
               )}
             </button>
 
-            {/* Transaction Status */}
+            {/* Enhanced Transaction Status */}
             {hash && (
               <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                <div className="text-sm">
-                  <span className="text-blue-800 dark:text-blue-200">
-                    Transaction Hash:
-                  </span>
-                  <a
-                    href={`https://sepolia.etherscan.io/tx/${hash}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="ml-2 font-mono text-xs text-blue-600 dark:text-blue-400 hover:underline break-all"
-                  >
-                    {hash}
-                  </a>
+                <div className="space-y-3">
+                  <div className="text-sm">
+                    <span className="text-blue-800 dark:text-blue-200">
+                      Transaction Hash:
+                    </span>
+                    <a
+                      href={`https://sepolia.etherscan.io/tx/${hash}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="ml-2 font-mono text-xs text-blue-600 dark:text-blue-400 hover:underline break-all"
+                    >
+                      {hash}
+                    </a>
+                  </div>
+
+                  {/* Transaction Status */}
+                  {transactionHandler.statusMessage && (
+                    <div className="flex items-center space-x-2">
+                      {transactionHandler.isLoading && (
+                        <svg
+                          className="animate-spin h-4 w-4 text-blue-600"
+                          xmlns="http://www.w3.org/2000/svg"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                        >
+                          <circle
+                            className="opacity-25"
+                            cx="12"
+                            cy="12"
+                            r="10"
+                            stroke="currentColor"
+                            strokeWidth="4"
+                          ></circle>
+                          <path
+                            className="opacity-75"
+                            fill="currentColor"
+                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                          ></path>
+                        </svg>
+                      )}
+                      <span className="text-sm text-blue-800 dark:text-blue-200 font-medium">
+                        {transactionHandler.statusMessage}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
 
-            {isSuccess && (
+            {transactionHandler.isSuccess && (
               <div className="mt-4 p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
                 <div className="flex items-center">
                   <svg
@@ -362,6 +431,48 @@ export default function FaucetPage() {
           </div>
         </div>
       </div>
+
+      {/* Full-screen transaction overlay */}
+      <FullScreenTransactionOverlay
+        isVisible={transactionHandler.showOverlay}
+        isLoading={transactionHandler.isLoading}
+        isWaitingForReceipt={transactionHandler.isWaitingForReceipt}
+        isWaitingForSync={transactionHandler.isWaitingForSync}
+        isSuccess={transactionHandler.isSuccess}
+        error={transactionHandler.error}
+        statusMessage={transactionHandler.statusMessage}
+        transactionHash={transactionHandler.transactionHash}
+        onClose={() => {
+          // Optional: handle close if needed
+        }}
+      />
+
+      {/* Transaction Confirmation Popup */}
+      {usePopup && (
+        <TransactionConfirmationPopup
+          isOpen={
+            transactionHandler.isLoading ||
+            transactionHandler.isWaitingForReceipt ||
+            transactionHandler.isSuccess ||
+            !!transactionHandler.error
+          }
+          onClose={() => {
+            // Reset states when manually closed
+            if (transactionHandler.error) {
+              setIsMinting(false);
+            }
+          }}
+          transactionHash={hash}
+          isWaitingForReceipt={transactionHandler.isWaitingForReceipt}
+          isWaitingForSync={false} // Don't show sync state
+          isSuccess={transactionHandler.isSuccess}
+          error={transactionHandler.error}
+          statusMessage={transactionHandler.statusMessage}
+          title={`Minting ${selectedToken.symbol}`}
+          description={`Minting ${MINT_AMOUNTS[selectedToken.symbol as keyof typeof MINT_AMOUNTS]} ${selectedToken.symbol} tokens to your wallet.`}
+          allowClose={true}
+        />
+      )}
     </div>
   );
 }

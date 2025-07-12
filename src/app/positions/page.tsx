@@ -35,6 +35,7 @@ import {
 } from "../../lib/types";
 import { createOrderService } from "../../lib/utils/create-order";
 import ConfirmationModal from "../../components/ConfirmationModal";
+import TransactionConfirmationPopup from "../../components/TransactionConfirmationPopup";
 
 // Component to calculate and display health factor for a single position
 function PositionHealthFactor({ position }: { position: any }) {
@@ -213,12 +214,18 @@ export default function PositionsPage() {
   const chainId = useChainId();
   const { data: walletClient } = useWalletClient();
 
-  // Initialize contract-based order cancellation hook
+  // Initialize contract-based order cancellation hook with popup support
+  const [usePopupForCancellation, setUsePopupForCancellation] = useState(true);
   const {
     cancelOrder: cancelOrderContract,
     cancelAllOrders,
     isCancelling,
-  } = useOrderCancellation();
+    transactionHash,
+    isWaitingForReceipt,
+    isSuccess,
+    error: transactionError,
+    transactionStatus,
+  } = useOrderCancellation(!usePopupForCancellation); // Use full-screen overlay when popup disabled
   const {
     positions,
     total,
@@ -530,25 +537,7 @@ export default function PositionsPage() {
         {/* Important Notes Warning */}
         <ImportantNotesWarning />
 
-        {/* Subtle Loading Indicators */}
-        {hasInitiallyLoaded &&
-          (pricesLoading ||
-            positionsLoading ||
-            ordersLoading ||
-            thresholdsLoading) && (
-            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 mb-6">
-              <div className="flex items-center space-x-2">
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-                <span className="text-sm text-blue-800 dark:text-blue-300">
-                  Refreshing data...
-                  {pricesLoading && " (prices)"}
-                  {positionsLoading && " (positions)"}
-                  {ordersLoading && " (orders)"}
-                  {thresholdsLoading && " (thresholds)"}
-                </span>
-              </div>
-            </div>
-          )}
+        {/* Subtle Loading Indicators - REMOVED to prevent screen jitter */}
 
         {/* Combined Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
@@ -1406,6 +1395,30 @@ export default function PositionsPage() {
           "This action cannot be undone",
         ]}
       />
+
+      {/* Transaction Confirmation Popup for Order Cancellation */}
+      {usePopupForCancellation && (
+        <TransactionConfirmationPopup
+          isOpen={
+            isCancelling ||
+            isWaitingForReceipt ||
+            isSuccess ||
+            !!transactionError
+          }
+          onClose={() => {
+            // Popup closed
+          }}
+          transactionHash={transactionHash}
+          isWaitingForReceipt={isWaitingForReceipt}
+          isWaitingForSync={false} // Don't show sync state for cancel orders
+          isSuccess={isSuccess}
+          error={transactionError}
+          statusMessage={transactionStatus}
+          title="Cancelling Order"
+          description="Processing order cancellation transaction..."
+          allowClose={true}
+        />
+      )}
     </div>
   );
 }

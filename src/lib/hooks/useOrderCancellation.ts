@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { useAccount, usePublicClient, useWriteContract } from "wagmi";
+import { useAccount, useWriteContract } from "wagmi";
 import { Address } from "viem";
 import { getAaveRouterAddress } from "../contracts";
 import { AAVE_ROUTER_ABI } from "../contracts/abis";
 import { logger } from "../utils/logger";
+import { useTransactionHandler } from "./useTransactionHandler";
 
 export interface CancelOrderParams {
   debt: Address;
@@ -21,24 +22,41 @@ export interface OrderTitle {
   triggerHF: number;
 }
 
-export function useOrderCancellation() {
+export function useOrderCancellation(useFullScreenOverlay: boolean = false) {
   const { address, chainId } = useAccount();
-  const { writeContractAsync } = useWriteContract();
-  const publicClient = usePublicClient();
+  const { writeContractAsync, data: hash } = useWriteContract();
 
-  const [isCancelling, setIsCancelling] = useState(false);
   const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(
     null
   );
 
+  // Enhanced transaction handler with auto-refresh but no database sync
+  const transactionHandler = useTransactionHandler({
+    hash,
+    onSuccess: () => {
+      logger.info("✅ Order cancellation completed! Refreshing page...");
+      setCancellingOrderId(null);
+      // Optional: refresh data or notify parent component
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
+    },
+    onError: (error) => {
+      logger.error("❌ Order cancellation failed:", error);
+      setCancellingOrderId(null);
+    },
+    enableAutoRefresh: false, // No auto-refresh for cancel orders
+    refreshDelay: 0, // No delay needed
+    showFullScreenOverlay: useFullScreenOverlay, // Use parameter
+  });
+
   // Cancel a specific order
   const cancelOrder = async (params: CancelOrderParams) => {
-    if (!address || !chainId || !publicClient) {
+    if (!address || !chainId) {
       throw new Error("Wallet not connected");
     }
 
     const routerAddress = getAaveRouterAddress(chainId);
-    setIsCancelling(true);
     setCancellingOrderId(`${params.debt}-${params.debtNonce}`);
 
     try {
@@ -62,33 +80,22 @@ export function useOrderCancellation() {
       });
 
       logger.info("✅ Order cancellation transaction submitted:", txHash);
-      logger.info("⏳ Waiting for transaction confirmation...");
-
-      // Wait for transaction to be confirmed
-      await publicClient.waitForTransactionReceipt({
-        hash: txHash as `0x${string}`,
-        timeout: 60000, // 60 second timeout
-      });
-
-      logger.info("✅ Order cancelled successfully and confirmed");
+      // Transaction handler will handle confirmation and refresh
       return txHash;
     } catch (error) {
       logger.error("❌ Order cancellation failed:", error);
-      throw error;
-    } finally {
-      setIsCancelling(false);
       setCancellingOrderId(null);
+      throw error;
     }
   };
 
   // Cancel all orders for a debt position
   const cancelAllOrders = async (debtAddress: Address) => {
-    if (!address || !chainId || !publicClient) {
+    if (!address || !chainId) {
       throw new Error("Wallet not connected");
     }
 
     const routerAddress = getAaveRouterAddress(chainId);
-    setIsCancelling(true);
     setCancellingOrderId(`all-${debtAddress}`);
 
     try {
@@ -103,29 +110,28 @@ export function useOrderCancellation() {
       });
 
       logger.info("✅ Cancel all orders transaction submitted:", txHash);
-      logger.info("⏳ Waiting for transaction confirmation...");
-
-      // Wait for transaction to be confirmed
-      await publicClient.waitForTransactionReceipt({
-        hash: txHash as `0x${string}`,
-        timeout: 60000, // 60 second timeout
-      });
-
-      logger.info("✅ All orders cancelled successfully and confirmed");
+      // Transaction handler will handle confirmation and refresh
       return txHash;
     } catch (error) {
       logger.error("❌ Cancel all orders failed:", error);
-      throw error;
-    } finally {
-      setIsCancelling(false);
       setCancellingOrderId(null);
+      throw error;
     }
   };
 
   return {
     cancelOrder,
     cancelAllOrders,
-    isCancelling,
+    isCancelling: transactionHandler.isLoading,
     cancellingOrderId,
+    transactionStatus: transactionHandler.statusMessage,
+    isWaitingForSync: transactionHandler.isWaitingForSync,
+    remainingTime: transactionHandler.remainingTime,
+    // Overlay properties
+    showOverlay: transactionHandler.showOverlay,
+    transactionHash: transactionHandler.transactionHash,
+    isWaitingForReceipt: transactionHandler.isWaitingForReceipt,
+    isSuccess: transactionHandler.isSuccess,
+    error: transactionHandler.error,
   };
 }

@@ -7,7 +7,6 @@ import {
   CreatePartialSellOrderParams,
   OrderFormErrors,
   OrderType,
-  TransactionStatus,
 } from "@/lib/types";
 import { DebtPosition } from "@/lib/types/debt-position";
 import { useEffect, useMemo, useState } from "react";
@@ -66,9 +65,6 @@ export default function CreateSellOrderModal({
   const [orderType, setOrderType] = useState<OrderType>("full");
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<OrderFormErrors>({});
-  const [txStatus, setTxStatus] = useState<TransactionStatus>({
-    state: "idle",
-  });
 
   // Full order form state
   const [triggerHealthFactor, setTriggerHealthFactor] = useState("1.4");
@@ -177,7 +173,6 @@ export default function CreateSellOrderModal({
     }
 
     setIsLoading(true);
-    setTxStatus({ state: "preparing" });
 
     try {
       const validityPeriodHours = parseInt(validDays) * 24;
@@ -191,6 +186,7 @@ export default function CreateSellOrderModal({
           paymentToken,
           validityPeriodHours,
         };
+
         await onCreateOrder(params);
       } else {
         // Get decimals of selected repay token
@@ -210,19 +206,17 @@ export default function CreateSellOrderModal({
           buyerBonus: parseFloat(partialBonus) * 100, // Convert percentage to basis points
           validityPeriodHours,
         };
+
         await onCreateOrder(params);
       }
 
-      setTxStatus({ state: "success" });
-      setTimeout(() => {
-        onClose();
-        setTxStatus({ state: "idle" });
-      }, 2000);
+      // Close modal after successful order creation
+      console.log("✅ Order created successfully");
+      onClose();
     } catch (error) {
-      setTxStatus({
-        state: "error",
-        error: error instanceof Error ? error.message : "Transaction failed",
-      });
+      console.error("❌ Failed to create order:", error);
+      // Error will be handled by the parent component
+      throw error;
     } finally {
       setIsLoading(false);
     }
@@ -579,39 +573,6 @@ export default function CreateSellOrderModal({
             </div>
           )}
 
-          {/* Transaction Status */}
-          {txStatus.state !== "idle" && (
-            <div
-              className={`p-4 rounded-lg ${
-                txStatus.state === "success"
-                  ? "bg-green-50 text-green-800 dark:bg-green-900/20 dark:text-green-300"
-                  : txStatus.state === "error"
-                    ? "bg-red-50 text-red-800 dark:bg-red-900/20 dark:text-red-300"
-                    : "bg-blue-50 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300"
-              }`}
-            >
-              <div className="flex items-center">
-                {txStatus.state === "preparing" && (
-                  <div className="spinner mr-2" />
-                )}
-                {txStatus.state === "success" && (
-                  <span className="mr-2">✓</span>
-                )}
-                {txStatus.state === "error" && <span className="mr-2">✗</span>}
-                <span>
-                  {txStatus.state === "preparing" && "Preparing transaction..."}
-                  {txStatus.state === "signing" &&
-                    "Please sign the transaction"}
-                  {txStatus.state === "pending" && "Transaction pending..."}
-                  {txStatus.state === "success" &&
-                    "Order created successfully!"}
-                  {txStatus.state === "error" &&
-                    (txStatus.error || "Transaction failed")}
-                </span>
-              </div>
-            </div>
-          )}
-
           {/* Submit Buttons */}
           <div className="flex gap-3 pt-4">
             <button
@@ -624,7 +585,7 @@ export default function CreateSellOrderModal({
             </button>
             <button
               type="submit"
-              disabled={isLoading || txStatus.state === "success"}
+              disabled={isLoading}
               className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isLoading ? "Creating Order..." : "Create Sell Order"}

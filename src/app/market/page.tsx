@@ -2,7 +2,8 @@
 
 import { getAaveRouterAddress } from "@/lib/contracts";
 import { ERC20_ABI } from "@/lib/contracts/abis";
-import { useOrderExecution } from "@/lib/hooks/useOrderExecution";
+import { useOrderExecutionWithOverlay } from "@/lib/hooks/useOrderExecutionWithOverlay";
+import { FullScreenTransactionOverlay } from "@/components/FullScreenTransactionOverlay";
 import { useMarketOrders } from "@/lib/hooks/useOrders";
 import { usePriceTokens } from "@/lib/hooks/usePriceTokens";
 import { HealthFactorStatus, MarketOrder, OrderType } from "@/lib/types";
@@ -25,7 +26,19 @@ import ImportantNotesWarning from "@/components/ImportantNotesWarning";
 export default function MarketPage() {
   const { isConnected, address, chainId } = useAccount();
   const { orders, isLoading, error, refetch } = useMarketOrders();
-  const { executeOrder, isExecuting, executingOrderId } = useOrderExecution();
+  const {
+    executeOrder,
+    isExecuting,
+    executingOrderId,
+    // Overlay properties
+    showOverlay,
+    transactionHash,
+    isWaitingForReceipt,
+    isWaitingForSync,
+    isSuccess,
+    error: transactionError,
+    statusMessage,
+  } = useOrderExecutionWithOverlay();
   const { getTokenSymbol, isLoading: tokensLoading, tokens } = usePriceTokens();
   const publicClient = usePublicClient();
   const { writeContractAsync } = useWriteContract();
@@ -1257,6 +1270,22 @@ export default function MarketPage() {
 
       {/* Replace the existing modal with the enhanced one */}
       {renderExecutionModal()}
+
+      {/* Full-screen transaction overlay for order execution */}
+      <FullScreenTransactionOverlay
+        isVisible={showOverlay}
+        isLoading={isExecuting}
+        isWaitingForReceipt={isWaitingForReceipt}
+        isWaitingForSync={isWaitingForSync}
+        isSuccess={isSuccess}
+        error={transactionError}
+        statusMessage={statusMessage}
+        transactionHash={transactionHash}
+        onClose={() => {
+          // Optional: handle close if needed
+          console.log("Order execution overlay closed");
+        }}
+      />
     </div>
   );
 }
