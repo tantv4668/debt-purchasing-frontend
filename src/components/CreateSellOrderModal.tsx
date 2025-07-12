@@ -18,7 +18,7 @@ import {
   formatWeiToUSD,
   validateHealthFactorTrigger,
   validateOrderValidity,
-  validatePercentOfEquity,
+  validateBonus, // Changed from validatePercentOfEquity
 } from "../lib/utils";
 
 interface CreateSellOrderModalProps {
@@ -72,7 +72,7 @@ export default function CreateSellOrderModal({
 
   // Full order form state
   const [triggerHealthFactor, setTriggerHealthFactor] = useState("1.4");
-  const [percentOfEquity, setPercentOfEquity] = useState("90");
+  const [bonus, setBonus] = useState("5"); // Changed from percentOfEquity
   const [paymentToken, setPaymentToken] = useState<Address>("0x" as Address);
   const [validDays, setValidDays] = useState("7");
 
@@ -82,7 +82,7 @@ export default function CreateSellOrderModal({
   const [selectedCollateral, setSelectedCollateral] = useState<Address>(
     "0x" as Address
   );
-  const [bonus, setBonus] = useState("1");
+  const [partialBonus, setPartialBonus] = useState("1"); // Renamed for clarity
 
   // Update token states when paymentTokens change
   useEffect(() => {
@@ -131,11 +131,11 @@ export default function CreateSellOrderModal({
     }
 
     if (orderType === "full") {
-      // Validate percent of equity
-      const percent = parseFloat(percentOfEquity);
-      const percentError = validatePercentOfEquity(percent);
-      if (percentError) {
-        newErrors.percentOfEquity = percentError;
+      // Validate bonus
+      const bonusPercent = parseFloat(bonus);
+      const bonusError = validateBonus(bonusPercent); // Changed from validatePercentOfEquity
+      if (bonusError) {
+        newErrors.bonus = bonusError; // Keep same error key for now
       }
     } else {
       // Validate repay token selection
@@ -187,7 +187,7 @@ export default function CreateSellOrderModal({
           debtAddress: debtPosition.address,
           debtNonce: debtPosition.nonce || 0, // Use current nonce from debt position
           triggerHealthFactor: parseFloat(triggerHealthFactor),
-          equityPercentage: parseFloat(percentOfEquity),
+          bonus: parseFloat(bonus) * 100, // Convert percentage to basis points (2% -> 200)
           paymentToken,
           validityPeriodHours,
         };
@@ -207,7 +207,7 @@ export default function CreateSellOrderModal({
           repayAmount,
           repayTokenDecimals,
           collateralToken: selectedCollateral,
-          buyerBonus: parseFloat(bonus),
+          buyerBonus: parseFloat(partialBonus) * 100, // Convert percentage to basis points
           validityPeriodHours,
         };
         await onCreateOrder(params);
@@ -364,7 +364,7 @@ export default function CreateSellOrderModal({
               >
                 <div className="font-medium">Full Sale</div>
                 <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">
-                  Sell entire position for percentage of equity
+                  Sell entire position with bonus on debt value
                 </div>
               </button>
               <button
@@ -435,21 +435,23 @@ export default function CreateSellOrderModal({
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Your Equity Share (%)
+                    Bonus (%)
                   </label>
                   <input
                     type="number"
-                    min="10"
-                    max="100"
-                    value={percentOfEquity}
-                    onChange={(e) => setPercentOfEquity(e.target.value)}
+                    min="0.1"
+                    max="20"
+                    step="0.1"
+                    value={bonus}
+                    onChange={(e) => setBonus(e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                     disabled={isLoading}
                   />
-                  {errors.percentOfEquity && (
-                    <p className="text-red-600 text-xs mt-1">
-                      {errors.percentOfEquity}
-                    </p>
+                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    Buyer pays: Collateral - Debt - (Debt × Bonus%)
+                  </div>
+                  {errors.bonus && (
+                    <p className="text-red-600 text-xs mt-1">{errors.bonus}</p>
                   )}
                 </div>
 
@@ -528,8 +530,8 @@ export default function CreateSellOrderModal({
                   step="0.1"
                   min="0"
                   max="10"
-                  value={bonus}
-                  onChange={(e) => setBonus(e.target.value)}
+                  value={partialBonus}
+                  onChange={(e) => setPartialBonus(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   disabled={isLoading}
                 />

@@ -7,6 +7,7 @@ import { getToken, getTokenAddress } from "@/lib/contracts/tokens";
 import { useWriteContract, useWaitForTransactionReceipt } from "wagmi";
 import { parseUnits } from "viem";
 import MintableABI from "@/lib/contracts/abis/Mintable.json";
+import ImportantNotesWarning from "@/components/ImportantNotesWarning";
 
 interface FaucetToken {
   symbol: string;
@@ -150,6 +151,9 @@ export default function FaucetPage() {
             Purchasing Protocol.
           </p>
         </div>
+
+        {/* Important Notes Warning */}
+        <ImportantNotesWarning />
 
         <div className="max-w-2xl mx-auto">
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">

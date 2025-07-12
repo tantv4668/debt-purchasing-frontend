@@ -1,4 +1,4 @@
-import { WalletClient } from "viem";
+import { WalletClient, parseUnits } from "viem";
 import { getContractAddress } from "../contracts/addresses";
 import { ChainId } from "../contracts/chains";
 import {
@@ -11,6 +11,7 @@ import {
   signFullSellOrder,
   signPartialSellOrder,
 } from "./order-signing";
+import { getTokenDecimalsByAddress } from "./token-helpers";
 
 interface CreateOrderServiceOptions {
   chainId: number;
@@ -44,8 +45,12 @@ export class CreateOrderService {
     const endTime = now + params.validityPeriodHours * 3600;
 
     // Convert values to correct format
-    const triggerHF = (params.triggerHealthFactor * 1e18).toString(); // Convert to wei
-    const percentOfEquity = (params.equityPercentage * 100).toString(); // Convert to basis points
+    // Use parseUnits to avoid scientific notation for triggerHF
+    const triggerHF = parseUnits(
+      params.triggerHealthFactor.toString(),
+      18
+    ).toString(); // Convert to wei
+    const bonus = params.bonus.toString(); // Already in basis points from frontend modal
 
     // Create unsigned order
     const unsignedOrder = {
@@ -55,7 +60,7 @@ export class CreateOrderService {
       endTime,
       triggerHF,
       token: params.paymentToken,
-      percentOfEquity,
+      bonus, // Changed from percentOfEquity
     };
 
     // Sign the order
@@ -94,13 +99,15 @@ export class CreateOrderService {
     const endTime = now + params.validityPeriodHours * 3600;
 
     // Convert values to correct format
-    const triggerHF = (params.triggerHealthFactor * 1e18).toString(); // Convert to wei
-    const bonus = (params.buyerBonus * 100).toString(); // Convert to basis points
+    // Use parseUnits to avoid scientific notation for triggerHF
+    const triggerHF = parseUnits(
+      params.triggerHealthFactor.toString(),
+      18
+    ).toString(); // Convert to wei
+    const bonus = params.buyerBonus.toString(); // Already in basis points from frontend modal
 
-    // Convert repay amount to wei format using provided decimals
-    const repayAmountWei = (
-      parseFloat(params.repayAmount) * Math.pow(10, params.repayTokenDecimals)
-    ).toString();
+    // Keep repay amount as decimal string for backend (frontend will convert to wei when calling contract)
+    const repayAmountDecimal = params.repayAmount;
 
     // Create unsigned order
     const unsignedOrder = {
@@ -112,25 +119,37 @@ export class CreateOrderService {
       interestRateMode: 2, // Variable rate (typical for Aave)
       collateralOut: params.collateralToken,
       repayToken: params.repayToken,
-      repayAmount: repayAmountWei,
+      repayAmount: repayAmountDecimal,
       bonus,
     };
 
-    // Sign the order
+    // For contract calls, we need to convert decimal to wei
+    const tokenDecimals = getTokenDecimalsByAddress(
+      params.repayToken,
+      this.chainId
+    );
+    // Use parseUnits to avoid scientific notation (1e+21) that BigInt cannot parse
+    const repayAmountWei = parseUnits(
+      params.repayAmount,
+      tokenDecimals
+    ).toString();
+
+    // Sign the order (use wei format for contract signing)
+    const orderForSigning = { ...unsignedOrder, repayAmount: repayAmountWei };
     const signedOrder = await signPartialSellOrder(
       this.chainId,
       contractAddress,
-      unsignedOrder,
+      orderForSigning,
       this.walletClient
     );
 
-    // Create API request
+    // Create API request (use wei format for signature verification)
     const orderRequest: CreateOrderRequest = {
       orderType: "PARTIAL",
       chainId: this.chainId,
       contractAddress,
       seller: this.seller,
-      partialSellOrder: signedOrder,
+      partialSellOrder: signedOrder, // Keep wei format for signature verification
     };
 
     // Submit to backend

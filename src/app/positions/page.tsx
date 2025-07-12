@@ -13,6 +13,7 @@ import CreateDebtModal from "../../components/CreateDebtModal";
 import CreateSellOrderModal from "../../components/CreateSellOrderModal";
 import ManagePositionModal from "../../components/ManagePositionModal";
 import Tooltip from "../../components/Tooltip";
+import ImportantNotesWarning from "../../components/ImportantNotesWarning";
 import {
   useUserDebtPositions,
   useUserPositionSummary,
@@ -23,6 +24,9 @@ import {
   useUserOrders,
   useUserOrdersSummary,
 } from "../../lib/hooks/useOrders";
+import { useOrderHistory } from "../../lib/hooks/useOrderHistory";
+import { useOrderCancellation } from "@/lib/hooks/useOrderCancellation";
+import { Address } from "viem";
 import { usePriceTokens } from "../../lib/hooks/usePriceTokens";
 import {
   CreateFullSellOrderParams,
@@ -30,6 +34,7 @@ import {
   UserSellOrder,
 } from "../../lib/types";
 import { createOrderService } from "../../lib/utils/create-order";
+import ConfirmationModal from "../../components/ConfirmationModal";
 
 // Component to calculate and display health factor for a single position
 function PositionHealthFactor({ position }: { position: any }) {
@@ -187,16 +192,33 @@ export default function PositionsPage() {
     useState<any>(null);
   const [selectedPositionForManage, setSelectedPositionForManage] =
     useState<any>(null);
-  const [activeTab, setActiveTab] = useState<"positions" | "orders">(
-    "positions"
-  );
+  const [activeTab, setActiveTab] = useState<
+    "positions" | "orders" | "history"
+  >("positions");
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize] = useState(5);
   const [hasInitiallyLoaded, setHasInitiallyLoaded] = useState(false);
+  const [copiedAddress, setCopiedAddress] = useState<string | null>(null);
+
+  // Filter states for Active Orders tab
+  const [positionFilter, setPositionFilter] = useState<string>(""); // Address filter
+  const [orderTypeFilter, setOrderTypeFilter] = useState<string>("all"); // "all", "full", "partial"
+
+  // Cancel all orders confirmation modal state
+  const [showCancelAllModal, setShowCancelAllModal] = useState(false);
+  const [selectedPositionForCancel, setSelectedPositionForCancel] =
+    useState<any>(null);
 
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
   const { data: walletClient } = useWalletClient();
+
+  // Initialize contract-based order cancellation hook
+  const {
+    cancelOrder: cancelOrderContract,
+    cancelAllOrders,
+    isCancelling,
+  } = useOrderCancellation();
   const {
     positions,
     total,
@@ -210,6 +232,12 @@ export default function PositionsPage() {
     error: ordersError,
     refetch: refetchOrders,
   } = useUserOrders();
+  const {
+    orders: historyOrders,
+    isLoading: historyLoading,
+    error: historyError,
+    refetch: refetchHistory,
+  } = useOrderHistory();
   const { cancelOrder } = useOrderActions();
   const positionSummary = useUserPositionSummary();
   const ordersSummary = useUserOrdersSummary();
@@ -218,6 +246,7 @@ export default function PositionsPage() {
     formatUSDValue,
     isLoading: pricesLoading,
   } = usePriceTokens();
+
   const { isLoading: thresholdsLoading, error: thresholdsError } =
     useLiquidationThresholds();
 
@@ -258,13 +287,66 @@ export default function PositionsPage() {
 
   const handleCancelOrder = async (order: UserSellOrder) => {
     try {
-      await cancelOrder(order.id);
+      // Get full order details from backend to extract contract parameters
+      const { orderApiService } = await import("../../lib/utils/order-api");
+      const orderInfo = await orderApiService.getOrderById(order.id);
+
+      if (!orderInfo) {
+        throw new Error("Failed to get order details");
+      }
+      const orderData = {
+        debt: order.debtAddress,
+        debtNonce: orderInfo.debtNonce || 0,
+        startTime: Math.floor(new Date(orderInfo.startTime).getTime() / 1000),
+        endTime: Math.floor(new Date(orderInfo.endTime).getTime() / 1000),
+        triggerHF: orderInfo.triggerHF,
+      };
+
+      await cancelOrderContract(orderData);
       // Refresh orders list
       await refetchOrders();
-      console.log("✅ Order cancelled and list refreshed");
+      console.log("✅ Order cancelled on-chain and list refreshed");
     } catch (error) {
       console.error("Failed to cancel order:", error);
       // You might want to show a toast notification here
+    }
+  };
+
+  const handleCancelAllOrders = (position: any) => {
+    setSelectedPositionForCancel(position);
+    setShowCancelAllModal(true);
+  };
+
+  const handleConfirmCancelAllOrders = async () => {
+    if (!selectedPositionForCancel) return;
+
+    try {
+      console.log(
+        "🚫 Cancelling all orders for position:",
+        selectedPositionForCancel.address
+      );
+
+      await cancelAllOrders(selectedPositionForCancel.address as Address);
+
+      // Refresh both orders and positions
+      await refetchOrders();
+      await refetchWithCacheRefresh();
+
+      console.log("✅ All orders cancelled successfully and data refreshed");
+
+      // Close modal
+      setShowCancelAllModal(false);
+      setSelectedPositionForCancel(null);
+    } catch (error) {
+      console.error("❌ Failed to cancel all orders:", error);
+      // Keep modal open to show error state
+    }
+  };
+
+  const handleCloseCancelAllModal = () => {
+    if (!isCancelling) {
+      setShowCancelAllModal(false);
+      setSelectedPositionForCancel(null);
     }
   };
 
@@ -283,23 +365,27 @@ export default function PositionsPage() {
     });
 
     try {
-      if ("equityPercentage" in params) {
+      if ("bonus" in params) {
         // This is a full sell order
         const result = await orderServiceInstance.createFullSellOrder(
           params as CreateFullSellOrderParams
         );
-        console.log("Full sell order created:", result);
+        console.log("✅ Full sell order created:", result);
       } else {
         // This is a partial sell order
         const result = await orderServiceInstance.createPartialSellOrder(
           params as CreatePartialSellOrderParams
         );
-        console.log("Partial sell order created:", result);
+        console.log("✅ Partial sell order created:", result);
       }
+
       // Refresh orders list after successful creation
-      // The useUserOrders hook will automatically refetch
+      await refetchOrders();
+
+      // Also refresh positions in case summary stats changed
+      await refetchWithCacheRefresh();
     } catch (error) {
-      console.error("Failed to create order:", error);
+      console.error("❌ Failed to create order:", error);
       throw error;
     }
   };
@@ -333,6 +419,31 @@ export default function PositionsPage() {
       return total + usdValue;
     }, 0);
   };
+
+  // Copy to clipboard function
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedAddress(text);
+      // Clear copied state after 2 seconds
+      setTimeout(() => {
+        setCopiedAddress(null);
+      }, 2000);
+      console.log("✅ Address copied to clipboard:", text);
+    } catch (err) {
+      console.error("Failed to copy address:", err);
+    }
+  };
+
+  // Filter orders based on position and type
+  const filteredOrders = orders.filter((order) => {
+    const matchesPosition =
+      positionFilter === "" ||
+      order.debtAddress.toLowerCase().includes(positionFilter.toLowerCase());
+    const matchesType =
+      orderTypeFilter === "all" || order.type === orderTypeFilter;
+    return matchesPosition && matchesType;
+  });
 
   if (!isConnected) {
     return (
@@ -415,6 +526,9 @@ export default function PositionsPage() {
             Create Position
           </button>
         </div>
+
+        {/* Important Notes Warning */}
+        <ImportantNotesWarning />
 
         {/* Subtle Loading Indicators */}
         {hasInitiallyLoaded &&
@@ -631,7 +745,20 @@ export default function PositionsPage() {
                     : "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600"
                 }`}
               >
-                Sell Orders ({ordersSummary.totalOrders})
+                Active Orders
+              </button>
+              <button
+                onClick={() => {
+                  setActiveTab("history");
+                  setCurrentPage(1);
+                }}
+                className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === "history"
+                    ? "border-blue-500 text-blue-600 dark:text-blue-400"
+                    : "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600"
+                }`}
+              >
+                History ({historyOrders.length})
               </button>
             </nav>
           </div>
@@ -697,9 +824,59 @@ export default function PositionsPage() {
                                 Position #
                                 {(currentPage - 1) * pageSize + index + 1}
                               </h3>
-                              <p className="text-sm text-gray-600 dark:text-gray-400 font-mono">
-                                {truncateAddress(position.address)}
-                              </p>
+                              <div className="flex items-center space-x-2">
+                                <p className="text-sm text-gray-600 dark:text-gray-400 font-mono">
+                                  {truncateAddress(position.address)}
+                                </p>
+                                <button
+                                  onClick={() =>
+                                    copyToClipboard(position.address)
+                                  }
+                                  className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors ${
+                                    copiedAddress === position.address
+                                      ? "bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200"
+                                      : "text-gray-400 hover:text-blue-600 dark:hover:text-blue-400"
+                                  }`}
+                                  title={
+                                    copiedAddress === position.address
+                                      ? "Copied!"
+                                      : "Copy full address"
+                                  }
+                                >
+                                  {copiedAddress === position.address ? (
+                                    <>
+                                      <svg
+                                        className="w-4 h-4"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        viewBox="0 0 24 24"
+                                      >
+                                        <path
+                                          strokeLinecap="round"
+                                          strokeLinejoin="round"
+                                          strokeWidth={2}
+                                          d="M5 13l4 4L19 7"
+                                        />
+                                      </svg>
+                                      <span>Copied</span>
+                                    </>
+                                  ) : (
+                                    <svg
+                                      className="w-4 h-4"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      viewBox="0 0 24 24"
+                                    >
+                                      <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                                      />
+                                    </svg>
+                                  )}
+                                </button>
+                              </div>
                               {positionOrders.length > 0 && (
                                 <div className="mt-2">
                                   <span className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 px-2 py-1 rounded-full">
@@ -805,7 +982,7 @@ export default function PositionsPage() {
 
                           {/* Actions */}
                           <div className="pt-4 border-t border-gray-200 dark:border-gray-600">
-                            <div className="flex space-x-3">
+                            <div className="flex flex-wrap gap-3">
                               <button
                                 onClick={() => handleCreateSellOrder(position)}
                                 className="px-4 py-2 bg-orange-50 dark:bg-orange-900 text-orange-600 dark:text-orange-200 rounded-lg text-sm font-medium hover:bg-orange-100 dark:hover:bg-orange-800 transition-colors"
@@ -818,6 +995,23 @@ export default function PositionsPage() {
                               >
                                 Manage Position
                               </button>
+                              {positionOrders.length > 0 && (
+                                <button
+                                  onClick={() =>
+                                    handleCancelAllOrders(position)
+                                  }
+                                  disabled={isCancelling}
+                                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                                    isCancelling
+                                      ? "bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed"
+                                      : "bg-red-50 dark:bg-red-900 text-red-600 dark:text-red-200 hover:bg-red-100 dark:hover:bg-red-800"
+                                  }`}
+                                >
+                                  {isCancelling
+                                    ? "Cancelling..."
+                                    : "Cancel All Orders"}
+                                </button>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -996,7 +1190,45 @@ export default function PositionsPage() {
             {/* Orders Tab */}
             {activeTab === "orders" && (
               <div>
-                {orders.length === 0 ? (
+                {/* Filter Controls */}
+                <div className="mb-6 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-600">
+                  <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                    Filter Orders
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Position Address Filter */}
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">
+                        Position Address
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Enter position address..."
+                        value={positionFilter}
+                        onChange={(e) => setPositionFilter(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      />
+                    </div>
+
+                    {/* Order Type Filter */}
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">
+                        Order Type
+                      </label>
+                      <select
+                        value={orderTypeFilter}
+                        onChange={(e) => setOrderTypeFilter(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      >
+                        <option value="all">All Types</option>
+                        <option value="full">Full Sale</option>
+                        <option value="partial">Partial Sale</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                {filteredOrders.length === 0 ? (
                   <div className="text-center py-12">
                     <div className="w-24 h-24 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-4">
                       <svg
@@ -1032,112 +1264,91 @@ export default function PositionsPage() {
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    {orders.map((order) => (
-                      <div
+                    {filteredOrders.map((order) => (
+                      <OrderCard
                         key={order.id}
-                        className="bg-gray-50 dark:bg-gray-700 rounded-xl p-6 border border-gray-100 dark:border-gray-600"
+                        order={order}
+                        onCancelOrder={handleCancelOrder}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* History Tab */}
+            {activeTab === "history" && (
+              <div>
+                {historyLoading ? (
+                  <div className="text-center py-12">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                    <p className="text-gray-600 dark:text-gray-300">
+                      Loading order history...
+                    </p>
+                  </div>
+                ) : historyError ? (
+                  <div className="text-center py-12">
+                    <div className="w-24 h-24 bg-red-100 dark:bg-red-700 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <svg
+                        className="w-12 h-12 text-red-400 dark:text-red-500"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
                       >
-                        <div className="flex justify-between items-start mb-4">
-                          <div>
-                            <div className="flex items-center gap-3 mb-2">
-                              <div
-                                className={`px-3 py-1 rounded-full text-xs font-medium ${
-                                  order.type === "full"
-                                    ? "bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200"
-                                    : "bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200"
-                                }`}
-                              >
-                                {order.type === "full"
-                                  ? "Full Sale"
-                                  : "Partial Sale"}
-                              </div>
-                              {getOrderStatusBadge(order.status)}
-                            </div>
-                            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
-                              Order for Position{" "}
-                              {truncateAddress(order.debtAddress)}
-                            </h3>
-                            <p className="text-sm text-gray-600 dark:text-gray-300">
-                              Created {formatTimeRemaining(order.createdAt)} ago
-                            </p>
-                          </div>
-                          <div className="text-right">
-                            <div className="text-sm text-gray-600 dark:text-gray-400">
-                              Expires in
-                            </div>
-                            <div className="font-medium text-orange-600">
-                              {formatTimeRemaining(order.validUntil)}
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-4">
-                          <div>
-                            <span className="text-sm text-gray-600 dark:text-gray-400">
-                              Trigger Health Factor:
-                            </span>
-                            <span className="ml-2 font-medium text-gray-900 dark:text-white">
-                              {formatPreciseHealthFactor(
-                                order.triggerHealthFactor,
-                                2
-                              )}
-                            </span>
-                          </div>
-                          <div>
-                            <span className="text-sm text-gray-600 dark:text-gray-400">
-                              Current Health Factor:
-                            </span>
-                            <span
-                              className={`ml-2 font-medium ${
-                                order.canExecute === "YES"
-                                  ? "text-red-600 dark:text-red-400"
-                                  : "text-gray-900 dark:text-white"
-                              }`}
-                            >
-                              {formatPreciseHealthFactor(
-                                order.currentHealthFactor,
-                                2
-                              )}
-                              {order.canExecute === "YES" && " (Executable)"}
-                            </span>
-                          </div>
-                          <div>
-                            {order.type === "full" && (
-                              <>
-                                <span className="text-sm text-gray-600 dark:text-gray-400">
-                                  Seller Gets:
-                                </span>
-                                <span className="ml-2 font-medium text-gray-900 dark:text-white">
-                                  {order.percentOfEquity}%
-                                </span>
-                              </>
-                            )}
-                            {order.type === "partial" && (
-                              <>
-                                <span className="text-sm text-gray-600 dark:text-gray-400">
-                                  Bonus:
-                                </span>
-                                <span className="ml-2 font-medium text-gray-900 dark:text-white">
-                                  {order.bonus}%
-                                </span>
-                              </>
-                            )}
-                          </div>
-                        </div>
-
-                        {order.status === "active" && (
-                          <div className="pt-4 border-t border-gray-200 dark:border-gray-600">
-                            <div className="flex space-x-3">
-                              <button
-                                onClick={() => handleCancelOrder(order)}
-                                className="px-4 py-2 bg-red-50 dark:bg-red-900 text-red-600 dark:text-red-200 rounded-lg text-sm font-medium hover:bg-red-100 dark:hover:bg-red-800 transition-colors"
-                              >
-                                Cancel Order
-                              </button>
-                            </div>
-                          </div>
-                        )}
-                      </div>
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                        />
+                      </svg>
+                    </div>
+                    <h3 className="text-lg font-medium text-red-600 mb-2">
+                      Error Loading History
+                    </h3>
+                    <p className="text-gray-600 dark:text-gray-300 mb-4">
+                      {historyError}
+                    </p>
+                    <button
+                      onClick={refetchHistory}
+                      className="bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors"
+                    >
+                      Try Again
+                    </button>
+                  </div>
+                ) : historyOrders.length === 0 ? (
+                  <div className="text-center py-12">
+                    <div className="w-24 h-24 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <svg
+                        className="w-12 h-12 text-gray-400 dark:text-gray-500"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                        />
+                      </svg>
+                    </div>
+                    <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                      No Order History
+                    </h3>
+                    <p className="text-gray-600 dark:text-gray-300 mb-6 max-w-md mx-auto">
+                      You don't have any executed, cancelled, or expired orders
+                      yet. Order history will appear here once you start
+                      trading.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {historyOrders.map((historyOrder) => (
+                      <HistoryOrderCard
+                        key={historyOrder.id}
+                        order={historyOrder}
+                      />
                     ))}
                   </div>
                 )}
@@ -1175,6 +1386,547 @@ export default function PositionsPage() {
           onPositionUpdated={refetchWithCacheRefresh}
         />
       )}
+
+      {/* Cancel All Orders Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={showCancelAllModal}
+        onClose={handleCloseCancelAllModal}
+        onConfirm={handleConfirmCancelAllOrders}
+        title="Cancel All Orders"
+        description="Are you sure you want to cancel ALL orders for this position? This is a destructive action that will invalidate all existing orders."
+        confirmText="Yes, Cancel All Orders"
+        cancelText="Keep Orders"
+        isLoading={isCancelling}
+        type="danger"
+        highlightedAddress={selectedPositionForCancel?.address}
+        details={[
+          "Cancel all active orders for this position",
+          "Increase the debt nonce by 1",
+          "Make all existing orders invalid",
+          "This action cannot be undone",
+        ]}
+      />
+    </div>
+  );
+}
+
+// Enhanced Order Card Component with detailed information
+function OrderCard({
+  order,
+  onCancelOrder,
+}: {
+  order: UserSellOrder;
+  onCancelOrder: (order: UserSellOrder) => void;
+}) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const { calculateUSDValueFromBigInt, formatUSDValue, getTokenSymbol } =
+    usePriceTokens();
+
+  const getOrderStatusBadge = (status: UserSellOrder["status"]) => {
+    const colors = {
+      active:
+        "bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200",
+      expired: "bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200",
+      executed: "bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200",
+      cancelled:
+        "bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200",
+    };
+
+    return (
+      <span
+        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${colors[status]}`}
+      >
+        {status.charAt(0).toUpperCase() + status.slice(1)}
+      </span>
+    );
+  };
+
+  const formatTokenAmount = (amount: string, decimals: number = 18) => {
+    try {
+      const value = parseFloat(amount);
+      return value.toLocaleString(undefined, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 6,
+      });
+    } catch {
+      return amount;
+    }
+  };
+
+  const formatDate = (date: Date) => {
+    return date.toLocaleDateString() + " " + date.toLocaleTimeString();
+  };
+
+  return (
+    <div className="bg-gray-50 dark:bg-gray-700 rounded-xl p-6 border border-gray-100 dark:border-gray-600">
+      <div className="flex justify-between items-start mb-4">
+        <div>
+          <div className="flex items-center gap-3 mb-2">
+            <div
+              className={`px-3 py-1 rounded-full text-xs font-medium ${
+                order.type === "full"
+                  ? "bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200"
+                  : "bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200"
+              }`}
+            >
+              {order.type === "full" ? "Full Sale" : "Partial Sale"}
+            </div>
+            {getOrderStatusBadge(order.status)}
+          </div>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
+            Order for Position{" "}
+            <span className="font-mono bg-blue-100 dark:bg-blue-900 text-blue-900 dark:text-blue-100 px-2 py-1 rounded-md font-bold">
+              {truncateAddress(order.debtAddress)}
+            </span>
+          </h3>
+          <p className="text-sm text-gray-600 dark:text-gray-300">
+            Created {formatTimeRemaining(order.createdAt)} ago
+          </p>
+        </div>
+        <div className="text-right">
+          <div className="text-sm text-gray-600 dark:text-gray-400">
+            Expires in
+          </div>
+          <div className="font-medium text-orange-600">
+            {formatTimeRemaining(order.validUntil)}
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-4">
+        <div>
+          <span className="text-sm text-gray-600 dark:text-gray-400">
+            Trigger Health Factor:
+          </span>
+          <span className="ml-2 font-medium text-gray-900 dark:text-white">
+            {formatPreciseHealthFactor(order.triggerHealthFactor, 2)}
+          </span>
+        </div>
+        <div>
+          <span className="text-sm text-gray-600 dark:text-gray-400">
+            Current Health Factor:
+          </span>
+          <span
+            className={`ml-2 font-medium ${
+              order.canExecute === "YES"
+                ? "text-red-600 dark:text-red-400"
+                : "text-gray-900 dark:text-white"
+            }`}
+          >
+            {formatPreciseHealthFactor(order.currentHealthFactor, 2)}
+            {order.canExecute === "YES" && " (Executable)"}
+          </span>
+        </div>
+        <div>
+          <span className="text-sm text-gray-600 dark:text-gray-400">
+            Debt Nonce:
+          </span>
+          <span className="ml-2 font-medium text-gray-900 dark:text-white">
+            {order.debtNonce}
+          </span>
+        </div>
+      </div>
+
+      {/* Order Details Expandable Section */}
+      <div className="mb-4">
+        <button
+          onClick={() => setIsExpanded(!isExpanded)}
+          className="flex items-center justify-between w-full px-4 py-3 bg-gray-100 dark:bg-gray-600 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-500 transition-colors"
+        >
+          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+            Order Parameters & Details
+          </span>
+          <svg
+            className={`w-5 h-5 text-gray-500 dark:text-gray-400 transition-transform duration-200 ${
+              isExpanded ? "rotate-180" : ""
+            }`}
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M19 9l-7 7-7-7"
+            />
+          </svg>
+        </button>
+
+        {isExpanded && (
+          <div className="mt-3 p-4 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-600">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Order Type Specific Information */}
+              <div>
+                <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
+                  {order.type === "full"
+                    ? "Full Sale Parameters"
+                    : "Partial Sale Parameters"}
+                </h4>
+                <div className="space-y-2">
+                  {order.type === "full" ? (
+                    <>
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-600 dark:text-gray-400">
+                          Bonus:
+                        </span>
+                        <span className="text-sm font-medium text-gray-900 dark:text-white">
+                          {order.bonus
+                            ? `${(order.bonus / 100).toFixed(2)}%`
+                            : "N/A"}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-600 dark:text-gray-400">
+                          Payment Token:
+                        </span>
+                        <span className="text-sm font-medium text-gray-900 dark:text-white font-mono">
+                          {order.paymentToken
+                            ? getTokenSymbol(order.paymentToken)
+                            : "N/A"}
+                        </span>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-600 dark:text-gray-400">
+                          Repay Amount:
+                        </span>
+                        <span className="text-sm font-medium text-gray-900 dark:text-white">
+                          {order.repayAmount
+                            ? formatTokenAmount(order.repayAmount)
+                            : "N/A"}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-600 dark:text-gray-400">
+                          Repay Token:
+                        </span>
+                        <span className="text-sm font-medium text-gray-900 dark:text-white font-mono">
+                          {order.repayToken
+                            ? getTokenSymbol(order.repayToken)
+                            : "N/A"}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-600 dark:text-gray-400">
+                          Collateral Token:
+                        </span>
+                        <span className="text-sm font-medium text-gray-900 dark:text-white font-mono">
+                          {order.collateralToken
+                            ? getTokenSymbol(order.collateralToken)
+                            : "N/A"}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-600 dark:text-gray-400">
+                          Buyer Bonus:
+                        </span>
+                        <span className="text-sm font-medium text-gray-900 dark:text-white">
+                          {order.bonus
+                            ? `${(order.bonus / 100).toFixed(2)}%`
+                            : "N/A"}
+                        </span>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Order Timing & Status */}
+              <div>
+                <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
+                  Order Timing & Status
+                </h4>
+                <div className="space-y-2">
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-600 dark:text-gray-400">
+                      Order ID:
+                    </span>
+                    <span className="text-xs font-mono text-gray-700 dark:text-gray-300">
+                      {truncateAddress(order.id)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-600 dark:text-gray-400">
+                      Created:
+                    </span>
+                    <span className="text-xs text-gray-700 dark:text-gray-300">
+                      {formatDate(order.createdAt)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-600 dark:text-gray-400">
+                      Expires:
+                    </span>
+                    <span className="text-xs text-gray-700 dark:text-gray-300">
+                      {formatDate(order.validUntil)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-600 dark:text-gray-400">
+                      Status:
+                    </span>
+                    <span className="text-sm font-medium text-gray-900 dark:text-white">
+                      {order.status.charAt(0).toUpperCase() +
+                        order.status.slice(1)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-600 dark:text-gray-400">
+                      Executable:
+                    </span>
+                    <span
+                      className={`text-sm font-medium ${
+                        order.canExecute === "YES"
+                          ? "text-red-600 dark:text-red-400"
+                          : "text-green-600 dark:text-green-400"
+                      }`}
+                    >
+                      {order.canExecute === "YES"
+                        ? "Yes - Can Execute"
+                        : "No - Safe"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Auto-cancellation warning */}
+      <div className="mt-4 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+        <div className="flex items-start space-x-2">
+          <svg
+            className="w-5 h-5 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0"
+            fill="currentColor"
+            viewBox="0 0 20 20"
+          >
+            <path
+              fillRule="evenodd"
+              d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
+              clipRule="evenodd"
+            />
+          </svg>
+          <div className="flex-1">
+            <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
+              Auto-cancellation Notice
+            </p>
+            <p className="text-xs text-amber-700 dark:text-amber-300 mt-1">
+              If any order with debt nonce{" "}
+              <strong className="text-amber-900 dark:text-amber-100">
+                {order.debtNonce}
+              </strong>{" "}
+              for position{" "}
+              <span className="font-mono bg-amber-100 dark:bg-amber-800 px-1 py-0.5 rounded text-amber-900 dark:text-amber-100 font-semibold">
+                {truncateAddress(order.debtAddress)}
+              </span>{" "}
+              is executed, all other orders with the same debt nonce for the
+              same position will be automatically cancelled.
+              <br />
+              <span className="text-amber-600 dark:text-amber-400 font-medium">
+                Note: Orders with same debt nonce but different positions are
+                not affected.
+              </span>
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {order.status === "active" && (
+        <div className="pt-4 border-t border-gray-200 dark:border-gray-600">
+          <div className="flex space-x-3">
+            <button
+              onClick={() => onCancelOrder(order)}
+              className="px-4 py-2 bg-red-50 dark:bg-red-900 text-red-600 dark:text-red-200 rounded-lg text-sm font-medium hover:bg-red-100 dark:hover:bg-red-800 transition-colors"
+            >
+              Cancel Order
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// History Order Card Component
+function HistoryOrderCard({ order }: { order: any }) {
+  const formatDate = (date: Date) => {
+    return new Intl.DateTimeFormat("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(date);
+  };
+
+  const getStatusBadge = (status: string) => {
+    const colors = {
+      EXECUTED:
+        "bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200",
+      CANCELLED:
+        "bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200",
+      EXPIRED: "bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200",
+    };
+
+    return (
+      <span
+        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${colors[status as keyof typeof colors]}`}
+      >
+        {status}
+      </span>
+    );
+  };
+
+  const getRoleBadge = (role: string) => {
+    const colors = {
+      BUYER: "bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200",
+      SELLER:
+        "bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200",
+    };
+
+    return (
+      <span
+        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${colors[role as keyof typeof colors]}`}
+      >
+        {role}
+      </span>
+    );
+  };
+
+  const formatUSDAmount = (amount?: number) => {
+    if (!amount) return "$0.00";
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amount);
+  };
+
+  const getActionDate = () => {
+    if (order.status === "EXECUTED" && order.executedAt) {
+      return { label: "Executed", date: order.executedAt };
+    }
+    if (order.status === "CANCELLED" && order.cancelledAt) {
+      return { label: "Cancelled", date: order.cancelledAt };
+    }
+    return { label: "Created", date: order.createdAt };
+  };
+
+  const actionInfo = getActionDate();
+
+  return (
+    <div className="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-2">
+            <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
+              {order.orderType}
+            </span>
+            {getStatusBadge(order.status)}
+            {getRoleBadge(order.userRole)}
+          </div>
+        </div>
+        <div className="text-sm text-gray-500 dark:text-gray-400">
+          {actionInfo.label}: {formatDate(actionInfo.date)}
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* Position Info */}
+        <div>
+          <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Position
+          </h4>
+          <div className="space-y-1">
+            <div className="text-sm text-gray-600 dark:text-gray-400">
+              {truncateAddress(order.debtAddress)}
+            </div>
+            <div className="text-xs text-gray-500 dark:text-gray-500">
+              Trigger HF: {parseFloat(order.triggerHF) / 1e18}
+            </div>
+          </div>
+        </div>
+
+        {/* Order Details */}
+        <div>
+          <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Order Details
+          </h4>
+          <div className="space-y-1">
+            {order.orderType === "FULL" ? (
+              <>
+                <div className="text-sm text-gray-600 dark:text-gray-400">
+                  Full Sale Order
+                </div>
+                <div className="text-xs text-gray-500 dark:text-gray-500">
+                  Bonus: {(order.bonus || 0) / 100}%
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="text-sm text-gray-600 dark:text-gray-400">
+                  Partial Sale
+                </div>
+                <div className="text-xs text-gray-500 dark:text-gray-500">
+                  Amount: {order.repayAmount || "N/A"}
+                </div>
+                <div className="text-xs text-gray-500 dark:text-gray-500">
+                  Bonus: {(order.bonus || 0) / 100}%
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Financial Info */}
+        <div>
+          <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            {order.userRole === "BUYER" ? "Your Earning" : "Your Saving"}
+          </h4>
+          <div className="space-y-1">
+            <div className="text-lg font-bold text-green-600 dark:text-green-400">
+              {formatUSDAmount(order.userEarning)}
+            </div>
+            {order.usdValue && (
+              <div className="text-xs text-gray-500 dark:text-gray-500">
+                Order Value: {formatUSDAmount(parseFloat(order.usdValue))}
+              </div>
+            )}
+            {order.usdBonus && (
+              <div className="text-xs text-gray-500 dark:text-gray-500">
+                Bonus: {formatUSDAmount(parseFloat(order.usdBonus))}
+              </div>
+            )}
+            {order.userRole === "SELLER" &&
+              order.usdValue &&
+              order.usdBonus && (
+                <div className="text-xs text-gray-500 dark:text-gray-500">
+                  vs 5% max penalty:{" "}
+                  {formatUSDAmount(parseFloat(order.usdValue) * 0.05)}
+                </div>
+              )}
+          </div>
+        </div>
+      </div>
+
+      {/* Additional Info Row */}
+      <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-600">
+        <div className="flex justify-between items-center text-xs text-gray-500 dark:text-gray-400">
+          <div>Order ID: {truncateAddress(order.id)}</div>
+          <div>
+            {order.userRole === "BUYER"
+              ? `Purchased from ${truncateAddress(order.seller)}`
+              : `Sold to ${order.buyer ? truncateAddress(order.buyer) : "N/A"}`}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

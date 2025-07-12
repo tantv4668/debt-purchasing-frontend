@@ -1,5 +1,6 @@
-import { parseUnits } from 'viem';
-import { SUPPORTED_TOKENS } from '../contracts/tokens';
+import { parseUnits } from "viem";
+import { SUPPORTED_TOKENS } from "../contracts/tokens";
+import { ChainId } from "../contracts/chains";
 
 // Local precision utility to avoid circular imports
 function toPreciseWei(value: number, precision: number = 4): bigint {
@@ -48,21 +49,22 @@ class TokenPriceService {
   private apiUrl: string;
 
   constructor() {
-    this.apiUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3002';
+    this.apiUrl =
+      process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3002";
   }
 
   async getPrices(): Promise<Record<string, number>> {
     try {
       const response = await fetch(`${this.apiUrl}/api/prices`);
       if (!response.ok) {
-        throw new Error('Failed to fetch token prices');
+        throw new Error("Failed to fetch token prices");
       }
 
       const data: PriceApiResponse = await response.json();
       const tokenPrices: Record<string, number> = {};
 
       if (data.data?.tokens && Array.isArray(data.data.tokens)) {
-        data.data.tokens.forEach(token => {
+        data.data.tokens.forEach((token) => {
           if (token?.id && token?.priceUSD) {
             tokenPrices[token.id.toLowerCase()] = parseFloat(token.priceUSD);
           }
@@ -71,7 +73,7 @@ class TokenPriceService {
 
       return tokenPrices;
     } catch (error) {
-      console.warn('Failed to fetch token prices, using defaults:', error);
+      console.warn("Failed to fetch token prices, using defaults:", error);
       return {};
     }
   }
@@ -80,14 +82,14 @@ class TokenPriceService {
     try {
       const response = await fetch(`${this.apiUrl}/api/prices`);
       if (!response.ok) {
-        throw new Error('Failed to fetch token data');
+        throw new Error("Failed to fetch token data");
       }
 
       const data: PriceApiResponse = await response.json();
       const tokenSymbols: Record<string, string> = {};
 
       if (data.data?.tokens && Array.isArray(data.data.tokens)) {
-        data.data.tokens.forEach(token => {
+        data.data.tokens.forEach((token) => {
           if (token?.id && token?.symbol) {
             tokenSymbols[token.id.toLowerCase()] = token.symbol;
           }
@@ -96,7 +98,7 @@ class TokenPriceService {
 
       return tokenSymbols;
     } catch (error) {
-      console.warn('Failed to fetch token symbols, using defaults:', error);
+      console.warn("Failed to fetch token symbols, using defaults:", error);
       return {};
     }
   }
@@ -109,12 +111,14 @@ export const tokenPriceService = new TokenPriceService();
 export function getTokenInfo(
   tokenAddress: string,
   chainId: number,
-  tokenPrices: Record<string, number> = {},
+  tokenPrices: Record<string, number> = {}
 ): TokenInfo {
   // Look up token in SUPPORTED_TOKENS by address
   const tokenEntry = Object.entries(SUPPORTED_TOKENS).find(
     ([, token]) =>
-      token.addresses[chainId as keyof typeof token.addresses]?.toLowerCase() === tokenAddress.toLowerCase(),
+      token.addresses[
+        chainId as keyof typeof token.addresses
+      ]?.toLowerCase() === tokenAddress.toLowerCase()
   );
 
   if (tokenEntry) {
@@ -130,7 +134,7 @@ export function getTokenInfo(
 
   // Fallback for unknown tokens
   return {
-    symbol: 'UNKNOWN',
+    symbol: "UNKNOWN",
     decimals: 18,
     priceUSD: tokenPrices[tokenAddress.toLowerCase()] || 1.0,
   };
@@ -141,7 +145,7 @@ export function calculateUsdValue(
   amount: string,
   tokenAddress: string,
   chainId: number,
-  tokenPrices: Record<string, number> = {},
+  tokenPrices: Record<string, number> = {}
 ): number {
   const tokenInfo = getTokenInfo(tokenAddress, chainId, tokenPrices);
   const amountFloat = parseFloat(amount);
@@ -153,13 +157,18 @@ export function formatTokenData(
   tokens: Array<{ token: string; amount: string; interestRateMode?: string }>,
   chainId: number,
   tokenPrices: Record<string, number> = {},
-  type: 'collateral' | 'debt' = 'collateral',
+  type: "collateral" | "debt" = "collateral"
 ) {
   let totalUSD = 0;
 
-  const formattedTokens = tokens.map(tokenData => {
+  const formattedTokens = tokens.map((tokenData) => {
     const tokenInfo = getTokenInfo(tokenData.token, chainId, tokenPrices);
-    const valueInUSD = calculateUsdValue(tokenData.amount, tokenData.token, chainId, tokenPrices);
+    const valueInUSD = calculateUsdValue(
+      tokenData.amount,
+      tokenData.token,
+      chainId,
+      tokenPrices
+    );
     totalUSD += valueInUSD;
 
     const amountFloat = parseFloat(tokenData.amount);
@@ -178,19 +187,22 @@ export function formatTokenData(
       valueInUSD: valueInUSD,
     };
 
-    if (type === 'debt' && tokenData.interestRateMode) {
+    if (type === "debt" && tokenData.interestRateMode) {
       return {
         ...baseToken,
         interestRateMode: parseInt(tokenData.interestRateMode) as 1 | 2,
-        variableDebtTokenAddress: '0x0000000000000000000000000000000000000000' as `0x${string}`,
-        stableDebtTokenAddress: '0x0000000000000000000000000000000000000000' as `0x${string}`,
+        variableDebtTokenAddress:
+          "0x0000000000000000000000000000000000000000" as `0x${string}`,
+        stableDebtTokenAddress:
+          "0x0000000000000000000000000000000000000000" as `0x${string}`,
       };
     }
 
-    if (type === 'collateral') {
+    if (type === "collateral") {
       return {
         ...baseToken,
-        aTokenAddress: '0x0000000000000000000000000000000000000000' as `0x${string}`,
+        aTokenAddress:
+          "0x0000000000000000000000000000000000000000" as `0x${string}`,
       };
     }
 
@@ -198,4 +210,82 @@ export function formatTokenData(
   });
 
   return { formattedTokens, totalUSD };
+}
+
+/**
+ * Get token decimals by address using SUPPORTED_TOKENS config
+ * @param tokenAddress - Token contract address
+ * @param chainId - Chain ID to match addresses
+ * @returns Token decimals (defaults to 18 if unknown)
+ */
+export function getTokenDecimalsByAddress(
+  tokenAddress: string,
+  chainId: number
+): number {
+  const normalizedAddress = tokenAddress.toLowerCase();
+
+  // Search through SUPPORTED_TOKENS to find matching address
+  for (const [symbol, tokenConfig] of Object.entries(SUPPORTED_TOKENS)) {
+    const configAddress = tokenConfig.addresses[chainId as ChainId];
+    if (configAddress && configAddress.toLowerCase() === normalizedAddress) {
+      return tokenConfig.decimals;
+    }
+  }
+
+  // Default to 18 decimals if token not found
+  console.warn(
+    `Token decimals not found for ${tokenAddress} on chain ${chainId}, defaulting to 18`
+  );
+  return 18;
+}
+
+/**
+ * Get token decimals by symbol using SUPPORTED_TOKENS config
+ * @param symbol - Token symbol (e.g., 'USDC', 'DAI')
+ * @returns Token decimals (defaults to 18 if unknown)
+ */
+export function getTokenDecimalsBySymbol(symbol: string): number {
+  const tokenConfig = SUPPORTED_TOKENS[symbol];
+  if (tokenConfig) {
+    return tokenConfig.decimals;
+  }
+
+  console.warn(
+    `Token decimals not found for symbol ${symbol}, defaulting to 18`
+  );
+  return 18;
+}
+
+/**
+ * Convert decimal amount to wei format using proper token decimals
+ * @param amount - Decimal amount as string (e.g., "1000.5")
+ * @param tokenAddress - Token contract address
+ * @param chainId - Chain ID to match addresses
+ * @returns Wei amount as bigint
+ */
+export function decimalToWei(
+  amount: string,
+  tokenAddress: string,
+  chainId: number
+): bigint {
+  const decimals = getTokenDecimalsByAddress(tokenAddress, chainId);
+  const multiplier = Math.pow(10, decimals);
+  return BigInt(Math.floor(parseFloat(amount) * multiplier));
+}
+
+/**
+ * Convert wei amount to decimal format using proper token decimals
+ * @param weiAmount - Wei amount as bigint
+ * @param tokenAddress - Token contract address
+ * @param chainId - Chain ID to match addresses
+ * @returns Decimal amount as string
+ */
+export function weiToDecimal(
+  weiAmount: bigint,
+  tokenAddress: string,
+  chainId: number
+): string {
+  const decimals = getTokenDecimalsByAddress(tokenAddress, chainId);
+  const divisor = Math.pow(10, decimals);
+  return (Number(weiAmount) / divisor).toString();
 }

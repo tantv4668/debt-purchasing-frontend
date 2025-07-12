@@ -1,732 +1,791 @@
-{
-  "abi": [
-    {
-      "type": "constructor",
-      "inputs": [
-        {
-          "name": "_aaveDebtImplementation",
-          "type": "address",
-          "internalType": "address"
-        },
-        {
-          "name": "_aavePoolAddressesProvider",
-          "type": "address",
-          "internalType": "address"
-        }
-      ],
-      "stateMutability": "nonpayable"
-    },
-    {
-      "type": "function",
-      "name": "FULL_SELL_ORDER_TYPE_HASH",
-      "inputs": [],
-      "outputs": [{ "name": "", "type": "bytes32", "internalType": "bytes32" }],
-      "stateMutability": "view"
-    },
-    {
-      "type": "function",
-      "name": "ONE_HUNDRED_PERCENT",
-      "inputs": [],
-      "outputs": [{ "name": "", "type": "uint256", "internalType": "uint256" }],
-      "stateMutability": "view"
-    },
-    {
-      "type": "function",
-      "name": "ORDER_TITLE_TYPE_HASH",
-      "inputs": [],
-      "outputs": [{ "name": "", "type": "bytes32", "internalType": "bytes32" }],
-      "stateMutability": "view"
-    },
-    {
-      "type": "function",
-      "name": "PARTIAL_SELL_ORDER_TYPE_HASH",
-      "inputs": [],
-      "outputs": [{ "name": "", "type": "bytes32", "internalType": "bytes32" }],
-      "stateMutability": "view"
-    },
-    {
-      "type": "function",
-      "name": "_getBaseValueFromTokenValue",
-      "inputs": [
-        { "name": "token", "type": "address", "internalType": "address" },
-        { "name": "tokenValue", "type": "uint256", "internalType": "uint256" },
-        { "name": "tokenPrice", "type": "uint256", "internalType": "uint256" }
-      ],
-      "outputs": [{ "name": "", "type": "uint256", "internalType": "uint256" }],
-      "stateMutability": "view"
-    },
-    {
-      "type": "function",
-      "name": "_getTokenValueFromBaseValue",
-      "inputs": [
-        { "name": "baseValue", "type": "uint256", "internalType": "uint256" },
-        { "name": "token", "type": "address", "internalType": "address" },
-        { "name": "tokenPrice", "type": "uint256", "internalType": "uint256" }
-      ],
-      "outputs": [{ "name": "", "type": "uint256", "internalType": "uint256" }],
-      "stateMutability": "view"
-    },
-    {
-      "type": "function",
-      "name": "aaveDebtImplementation",
-      "inputs": [],
-      "outputs": [{ "name": "", "type": "address", "internalType": "address" }],
-      "stateMutability": "view"
-    },
-    {
-      "type": "function",
-      "name": "aaveOracle",
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "",
-          "type": "address",
-          "internalType": "contract IPriceOracleGetter"
-        }
-      ],
-      "stateMutability": "view"
-    },
-    {
-      "type": "function",
-      "name": "aavePool",
-      "inputs": [],
-      "outputs": [
-        { "name": "", "type": "address", "internalType": "contract IPool" }
-      ],
-      "stateMutability": "view"
-    },
-    {
-      "type": "function",
-      "name": "aavePoolAddressesProvider",
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "",
-          "type": "address",
-          "internalType": "contract IPoolAddressesProvider"
-        }
-      ],
-      "stateMutability": "view"
-    },
-    {
-      "type": "function",
-      "name": "callBorrow",
-      "inputs": [
-        { "name": "debt", "type": "address", "internalType": "address" },
-        { "name": "asset", "type": "address", "internalType": "address" },
-        { "name": "amount", "type": "uint256", "internalType": "uint256" },
-        {
-          "name": "interestRateMode",
-          "type": "uint256",
-          "internalType": "uint256"
-        },
-        { "name": "receiver", "type": "address", "internalType": "address" }
-      ],
-      "outputs": [],
-      "stateMutability": "nonpayable"
-    },
-    {
-      "type": "function",
-      "name": "callRepay",
-      "inputs": [
-        { "name": "debt", "type": "address", "internalType": "address" },
-        { "name": "asset", "type": "address", "internalType": "address" },
-        { "name": "amount", "type": "uint256", "internalType": "uint256" },
-        {
-          "name": "interestRateMode",
-          "type": "uint256",
-          "internalType": "uint256"
-        }
-      ],
-      "outputs": [],
-      "stateMutability": "nonpayable"
-    },
-    {
-      "type": "function",
-      "name": "callRepayWithATokens",
-      "inputs": [
-        { "name": "debt", "type": "address", "internalType": "address" },
-        { "name": "asset", "type": "address", "internalType": "address" },
-        { "name": "amount", "type": "uint256", "internalType": "uint256" },
-        {
-          "name": "interestRateMode",
-          "type": "uint256",
-          "internalType": "uint256"
-        }
-      ],
-      "outputs": [],
-      "stateMutability": "nonpayable"
-    },
-    {
-      "type": "function",
-      "name": "callRepayWithPermit",
-      "inputs": [
-        { "name": "debt", "type": "address", "internalType": "address" },
-        { "name": "asset", "type": "address", "internalType": "address" },
-        { "name": "amount", "type": "uint256", "internalType": "uint256" },
-        {
-          "name": "interestRateMode",
-          "type": "uint256",
-          "internalType": "uint256"
-        },
-        { "name": "deadline", "type": "uint256", "internalType": "uint256" },
-        { "name": "permitV", "type": "uint8", "internalType": "uint8" },
-        { "name": "permitR", "type": "bytes32", "internalType": "bytes32" },
-        { "name": "permitS", "type": "bytes32", "internalType": "bytes32" }
-      ],
-      "outputs": [],
-      "stateMutability": "nonpayable"
-    },
-    {
-      "type": "function",
-      "name": "callSupply",
-      "inputs": [
-        { "name": "debt", "type": "address", "internalType": "address" },
-        { "name": "asset", "type": "address", "internalType": "address" },
-        { "name": "amount", "type": "uint256", "internalType": "uint256" }
-      ],
-      "outputs": [],
-      "stateMutability": "nonpayable"
-    },
-    {
-      "type": "function",
-      "name": "callSupplyWithPermit",
-      "inputs": [
-        { "name": "debt", "type": "address", "internalType": "address" },
-        { "name": "asset", "type": "address", "internalType": "address" },
-        { "name": "amount", "type": "uint256", "internalType": "uint256" },
-        { "name": "deadline", "type": "uint256", "internalType": "uint256" },
-        { "name": "permitV", "type": "uint8", "internalType": "uint8" },
-        { "name": "permitR", "type": "bytes32", "internalType": "bytes32" },
-        { "name": "permitS", "type": "bytes32", "internalType": "bytes32" }
-      ],
-      "outputs": [],
-      "stateMutability": "nonpayable"
-    },
-    {
-      "type": "function",
-      "name": "callSwapBorrowRateMode",
-      "inputs": [
-        { "name": "debt", "type": "address", "internalType": "address" },
-        { "name": "asset", "type": "address", "internalType": "address" },
-        {
-          "name": "interestRateMode",
-          "type": "uint256",
-          "internalType": "uint256"
-        }
-      ],
-      "outputs": [],
-      "stateMutability": "nonpayable"
-    },
-    {
-      "type": "function",
-      "name": "callWithdraw",
-      "inputs": [
-        { "name": "debt", "type": "address", "internalType": "address" },
-        { "name": "asset", "type": "address", "internalType": "address" },
-        { "name": "amount", "type": "uint256", "internalType": "uint256" },
-        { "name": "to", "type": "address", "internalType": "address" }
-      ],
-      "outputs": [],
-      "stateMutability": "nonpayable"
-    },
-    {
-      "type": "function",
-      "name": "cancelDebtCurrentOrders",
-      "inputs": [
-        { "name": "debt", "type": "address", "internalType": "address" }
-      ],
-      "outputs": [],
-      "stateMutability": "nonpayable"
-    },
-    {
-      "type": "function",
-      "name": "cancelOrder",
-      "inputs": [
-        { "name": "titleHash", "type": "bytes32", "internalType": "bytes32" }
-      ],
-      "outputs": [],
-      "stateMutability": "nonpayable"
-    },
-    {
-      "type": "function",
-      "name": "cancelledOrders",
-      "inputs": [{ "name": "", "type": "bytes32", "internalType": "bytes32" }],
-      "outputs": [{ "name": "", "type": "bool", "internalType": "bool" }],
-      "stateMutability": "view"
-    },
-    {
-      "type": "function",
-      "name": "createDebt",
-      "inputs": [],
-      "outputs": [{ "name": "", "type": "address", "internalType": "address" }],
-      "stateMutability": "nonpayable"
-    },
-    {
-      "type": "function",
-      "name": "debtNonces",
-      "inputs": [{ "name": "", "type": "address", "internalType": "address" }],
-      "outputs": [{ "name": "", "type": "uint256", "internalType": "uint256" }],
-      "stateMutability": "view"
-    },
-    {
-      "type": "function",
-      "name": "debtOwners",
-      "inputs": [{ "name": "", "type": "address", "internalType": "address" }],
-      "outputs": [{ "name": "", "type": "address", "internalType": "address" }],
-      "stateMutability": "view"
-    },
-    {
-      "type": "function",
-      "name": "eip712Domain",
-      "inputs": [],
-      "outputs": [
-        { "name": "fields", "type": "bytes1", "internalType": "bytes1" },
-        { "name": "name", "type": "string", "internalType": "string" },
-        { "name": "version", "type": "string", "internalType": "string" },
-        { "name": "chainId", "type": "uint256", "internalType": "uint256" },
-        {
-          "name": "verifyingContract",
-          "type": "address",
-          "internalType": "address"
-        },
-        { "name": "salt", "type": "bytes32", "internalType": "bytes32" },
-        {
-          "name": "extensions",
-          "type": "uint256[]",
-          "internalType": "uint256[]"
-        }
-      ],
-      "stateMutability": "view"
-    },
-    {
-      "type": "function",
-      "name": "excutePartialSellOrder",
-      "inputs": [
-        {
-          "name": "order",
-          "type": "tuple",
-          "internalType": "struct IAaveRouter.PartialSellOrder",
-          "components": [
-            {
-              "name": "title",
-              "type": "tuple",
-              "internalType": "struct IAaveRouter.OrderTitle",
-              "components": [
-                {
-                  "name": "debt",
-                  "type": "address",
-                  "internalType": "address"
-                },
-                {
-                  "name": "debtNonce",
-                  "type": "uint256",
-                  "internalType": "uint256"
-                },
-                {
-                  "name": "startTime",
-                  "type": "uint256",
-                  "internalType": "uint256"
-                },
-                {
-                  "name": "endTime",
-                  "type": "uint256",
-                  "internalType": "uint256"
-                },
-                {
-                  "name": "triggerHF",
-                  "type": "uint256",
-                  "internalType": "uint256"
-                }
-              ]
-            },
-            {
-              "name": "interestRateMode",
-              "type": "uint256",
-              "internalType": "uint256"
-            },
-            {
-              "name": "collateralOut",
-              "type": "address",
-              "internalType": "address"
-            },
-            {
-              "name": "repayToken",
-              "type": "address",
-              "internalType": "address"
-            },
-            {
-              "name": "repayAmount",
-              "type": "uint256",
-              "internalType": "uint256"
-            },
-            { "name": "bonus", "type": "uint256", "internalType": "uint256" },
-            { "name": "v", "type": "uint8", "internalType": "uint8" },
-            { "name": "r", "type": "bytes32", "internalType": "bytes32" },
-            { "name": "s", "type": "bytes32", "internalType": "bytes32" }
-          ]
-        }
-      ],
-      "outputs": [],
-      "stateMutability": "nonpayable"
-    },
-    {
-      "type": "function",
-      "name": "executeFullSaleOrder",
-      "inputs": [
-        {
-          "name": "order",
-          "type": "tuple",
-          "internalType": "struct IAaveRouter.FullSellOrder",
-          "components": [
-            {
-              "name": "title",
-              "type": "tuple",
-              "internalType": "struct IAaveRouter.OrderTitle",
-              "components": [
-                {
-                  "name": "debt",
-                  "type": "address",
-                  "internalType": "address"
-                },
-                {
-                  "name": "debtNonce",
-                  "type": "uint256",
-                  "internalType": "uint256"
-                },
-                {
-                  "name": "startTime",
-                  "type": "uint256",
-                  "internalType": "uint256"
-                },
-                {
-                  "name": "endTime",
-                  "type": "uint256",
-                  "internalType": "uint256"
-                },
-                {
-                  "name": "triggerHF",
-                  "type": "uint256",
-                  "internalType": "uint256"
-                }
-              ]
-            },
-            { "name": "token", "type": "address", "internalType": "address" },
-            {
-              "name": "percentOfEquity",
-              "type": "uint256",
-              "internalType": "uint256"
-            },
-            { "name": "v", "type": "uint8", "internalType": "uint8" },
-            { "name": "r", "type": "bytes32", "internalType": "bytes32" },
-            { "name": "s", "type": "bytes32", "internalType": "bytes32" }
-          ]
-        },
-        { "name": "minProfit", "type": "uint256", "internalType": "uint256" }
-      ],
-      "outputs": [],
-      "stateMutability": "nonpayable"
-    },
-    {
-      "type": "function",
-      "name": "multicall",
-      "inputs": [
-        { "name": "data", "type": "bytes[]", "internalType": "bytes[]" }
-      ],
-      "outputs": [],
-      "stateMutability": "nonpayable"
-    },
-    {
-      "type": "function",
-      "name": "predictDebtAddress",
-      "inputs": [
-        { "name": "user", "type": "address", "internalType": "address" }
-      ],
-      "outputs": [{ "name": "", "type": "address", "internalType": "address" }],
-      "stateMutability": "view"
-    },
-    {
-      "type": "function",
-      "name": "transferDebtOwnership",
-      "inputs": [
-        { "name": "debt", "type": "address", "internalType": "address" },
-        { "name": "newOwner", "type": "address", "internalType": "address" }
-      ],
-      "outputs": [],
-      "stateMutability": "nonpayable"
-    },
-    {
-      "type": "function",
-      "name": "userNonces",
-      "inputs": [{ "name": "", "type": "address", "internalType": "address" }],
-      "outputs": [{ "name": "", "type": "uint256", "internalType": "uint256" }],
-      "stateMutability": "view"
-    },
-    {
-      "type": "event",
-      "name": "Borrow",
-      "inputs": [
-        {
-          "name": "debt",
-          "type": "address",
-          "indexed": true,
-          "internalType": "address"
-        },
-        {
-          "name": "asset",
-          "type": "address",
-          "indexed": true,
-          "internalType": "address"
-        },
-        {
-          "name": "amount",
-          "type": "uint256",
-          "indexed": false,
-          "internalType": "uint256"
-        },
-        {
-          "name": "interestRateMode",
-          "type": "uint256",
-          "indexed": false,
-          "internalType": "uint256"
-        }
-      ],
-      "anonymous": false
-    },
-    {
-      "type": "event",
-      "name": "CancelCurrentDebtOrders",
-      "inputs": [
-        {
-          "name": "debt",
-          "type": "address",
-          "indexed": true,
-          "internalType": "address"
-        }
-      ],
-      "anonymous": false
-    },
-    {
-      "type": "event",
-      "name": "CancelOrder",
-      "inputs": [
-        {
-          "name": "titleHash",
-          "type": "bytes32",
-          "indexed": true,
-          "internalType": "bytes32"
-        }
-      ],
-      "anonymous": false
-    },
-    {
-      "type": "event",
-      "name": "CreateDebt",
-      "inputs": [
-        {
-          "name": "debt",
-          "type": "address",
-          "indexed": true,
-          "internalType": "address"
-        },
-        {
-          "name": "owner",
-          "type": "address",
-          "indexed": true,
-          "internalType": "address"
-        }
-      ],
-      "anonymous": false
-    },
-    {
-      "type": "event",
-      "name": "EIP712DomainChanged",
-      "inputs": [],
-      "anonymous": false
-    },
-    {
-      "type": "event",
-      "name": "ExecuteFullSaleOrder",
-      "inputs": [
-        {
-          "name": "titleHash",
-          "type": "bytes32",
-          "indexed": true,
-          "internalType": "bytes32"
-        },
-        {
-          "name": "debtNonce",
-          "type": "uint256",
-          "indexed": false,
-          "internalType": "uint256"
-        },
-        {
-          "name": "buyer",
-          "type": "address",
-          "indexed": false,
-          "internalType": "address"
-        }
-      ],
-      "anonymous": false
-    },
-    {
-      "type": "event",
-      "name": "ExecutePartialSellOrder",
-      "inputs": [
-        {
-          "name": "titleHash",
-          "type": "bytes32",
-          "indexed": true,
-          "internalType": "bytes32"
-        },
-        {
-          "name": "debtNonce",
-          "type": "uint256",
-          "indexed": false,
-          "internalType": "uint256"
-        },
-        {
-          "name": "buyer",
-          "type": "address",
-          "indexed": false,
-          "internalType": "address"
-        }
-      ],
-      "anonymous": false
-    },
-    {
-      "type": "event",
-      "name": "Repay",
-      "inputs": [
-        {
-          "name": "debt",
-          "type": "address",
-          "indexed": true,
-          "internalType": "address"
-        },
-        {
-          "name": "asset",
-          "type": "address",
-          "indexed": true,
-          "internalType": "address"
-        },
-        {
-          "name": "amount",
-          "type": "uint256",
-          "indexed": false,
-          "internalType": "uint256"
-        },
-        {
-          "name": "interestRateMode",
-          "type": "uint256",
-          "indexed": false,
-          "internalType": "uint256"
-        }
-      ],
-      "anonymous": false
-    },
-    {
-      "type": "event",
-      "name": "Supply",
-      "inputs": [
-        {
-          "name": "debt",
-          "type": "address",
-          "indexed": true,
-          "internalType": "address"
-        },
-        {
-          "name": "asset",
-          "type": "address",
-          "indexed": true,
-          "internalType": "address"
-        },
-        {
-          "name": "amount",
-          "type": "uint256",
-          "indexed": false,
-          "internalType": "uint256"
-        }
-      ],
-      "anonymous": false
-    },
-    {
-      "type": "event",
-      "name": "TransferDebtOwnership",
-      "inputs": [
-        {
-          "name": "debt",
-          "type": "address",
-          "indexed": true,
-          "internalType": "address"
-        },
-        {
-          "name": "newOwner",
-          "type": "address",
-          "indexed": true,
-          "internalType": "address"
-        }
-      ],
-      "anonymous": false
-    },
-    {
-      "type": "event",
-      "name": "Withdraw",
-      "inputs": [
-        {
-          "name": "debt",
-          "type": "address",
-          "indexed": true,
-          "internalType": "address"
-        },
-        {
-          "name": "asset",
-          "type": "address",
-          "indexed": true,
-          "internalType": "address"
-        },
-        {
-          "name": "amount",
-          "type": "uint256",
-          "indexed": false,
-          "internalType": "uint256"
-        },
-        {
-          "name": "to",
-          "type": "address",
-          "indexed": false,
-          "internalType": "address"
-        }
-      ],
-      "anonymous": false
-    },
-    { "type": "error", "name": "ECDSAInvalidSignature", "inputs": [] },
-    {
-      "type": "error",
-      "name": "ECDSAInvalidSignatureLength",
-      "inputs": [
-        { "name": "length", "type": "uint256", "internalType": "uint256" }
-      ]
-    },
-    {
-      "type": "error",
-      "name": "ECDSAInvalidSignatureS",
-      "inputs": [{ "name": "s", "type": "bytes32", "internalType": "bytes32" }]
-    },
-    { "type": "error", "name": "FailedDeployment", "inputs": [] },
-    {
-      "type": "error",
-      "name": "InsufficientBalance",
-      "inputs": [
-        { "name": "balance", "type": "uint256", "internalType": "uint256" },
-        { "name": "needed", "type": "uint256", "internalType": "uint256" }
-      ]
-    },
-    { "type": "error", "name": "InvalidShortString", "inputs": [] },
-    {
-      "type": "error",
-      "name": "StringTooLong",
-      "inputs": [{ "name": "str", "type": "string", "internalType": "string" }]
-    }
-  ]
-}
+[
+  {
+    "type": "constructor",
+    "inputs": [
+      {
+        "name": "_aaveDebtImplementation",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "_aavePoolAddressesProvider",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "FULL_SELL_ORDER_TYPE_HASH",
+    "inputs": [],
+    "outputs": [{ "name": "", "type": "bytes32", "internalType": "bytes32" }],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "ONE_HUNDRED_PERCENT",
+    "inputs": [],
+    "outputs": [{ "name": "", "type": "uint256", "internalType": "uint256" }],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "ORDER_TITLE_TYPE_HASH",
+    "inputs": [],
+    "outputs": [{ "name": "", "type": "bytes32", "internalType": "bytes32" }],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "PARTIAL_SELL_ORDER_TYPE_HASH",
+    "inputs": [],
+    "outputs": [{ "name": "", "type": "bytes32", "internalType": "bytes32" }],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "_getBaseValueFromTokenValue",
+    "inputs": [
+      { "name": "token", "type": "address", "internalType": "address" },
+      { "name": "tokenValue", "type": "uint256", "internalType": "uint256" },
+      { "name": "tokenPrice", "type": "uint256", "internalType": "uint256" }
+    ],
+    "outputs": [{ "name": "", "type": "uint256", "internalType": "uint256" }],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "_getTokenValueFromBaseValue",
+    "inputs": [
+      { "name": "baseValue", "type": "uint256", "internalType": "uint256" },
+      { "name": "token", "type": "address", "internalType": "address" },
+      { "name": "tokenPrice", "type": "uint256", "internalType": "uint256" }
+    ],
+    "outputs": [{ "name": "", "type": "uint256", "internalType": "uint256" }],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "aaveDebtImplementation",
+    "inputs": [],
+    "outputs": [{ "name": "", "type": "address", "internalType": "address" }],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "aaveOracle",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "contract IPriceOracleGetter"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "aavePool",
+    "inputs": [],
+    "outputs": [
+      { "name": "", "type": "address", "internalType": "contract IPool" }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "aavePoolAddressesProvider",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "contract IPoolAddressesProvider"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "callBorrow",
+    "inputs": [
+      { "name": "debt", "type": "address", "internalType": "address" },
+      { "name": "asset", "type": "address", "internalType": "address" },
+      { "name": "amount", "type": "uint256", "internalType": "uint256" },
+      {
+        "name": "interestRateMode",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      { "name": "receiver", "type": "address", "internalType": "address" }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "callRepay",
+    "inputs": [
+      { "name": "debt", "type": "address", "internalType": "address" },
+      { "name": "asset", "type": "address", "internalType": "address" },
+      { "name": "amount", "type": "uint256", "internalType": "uint256" },
+      {
+        "name": "interestRateMode",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "callRepayWithATokens",
+    "inputs": [
+      { "name": "debt", "type": "address", "internalType": "address" },
+      { "name": "asset", "type": "address", "internalType": "address" },
+      { "name": "amount", "type": "uint256", "internalType": "uint256" },
+      {
+        "name": "interestRateMode",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "callRepayWithPermit",
+    "inputs": [
+      { "name": "debt", "type": "address", "internalType": "address" },
+      { "name": "asset", "type": "address", "internalType": "address" },
+      { "name": "amount", "type": "uint256", "internalType": "uint256" },
+      {
+        "name": "interestRateMode",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      { "name": "deadline", "type": "uint256", "internalType": "uint256" },
+      { "name": "permitV", "type": "uint8", "internalType": "uint8" },
+      { "name": "permitR", "type": "bytes32", "internalType": "bytes32" },
+      { "name": "permitS", "type": "bytes32", "internalType": "bytes32" }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "callSupply",
+    "inputs": [
+      { "name": "debt", "type": "address", "internalType": "address" },
+      { "name": "asset", "type": "address", "internalType": "address" },
+      { "name": "amount", "type": "uint256", "internalType": "uint256" }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "callSupplyWithPermit",
+    "inputs": [
+      { "name": "debt", "type": "address", "internalType": "address" },
+      { "name": "asset", "type": "address", "internalType": "address" },
+      { "name": "amount", "type": "uint256", "internalType": "uint256" },
+      { "name": "deadline", "type": "uint256", "internalType": "uint256" },
+      { "name": "permitV", "type": "uint8", "internalType": "uint8" },
+      { "name": "permitR", "type": "bytes32", "internalType": "bytes32" },
+      { "name": "permitS", "type": "bytes32", "internalType": "bytes32" }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "callSwapBorrowRateMode",
+    "inputs": [
+      { "name": "debt", "type": "address", "internalType": "address" },
+      { "name": "asset", "type": "address", "internalType": "address" },
+      {
+        "name": "interestRateMode",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "callWithdraw",
+    "inputs": [
+      { "name": "debt", "type": "address", "internalType": "address" },
+      { "name": "asset", "type": "address", "internalType": "address" },
+      { "name": "amount", "type": "uint256", "internalType": "uint256" },
+      { "name": "to", "type": "address", "internalType": "address" }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "cancelDebtCurrentOrders",
+    "inputs": [
+      { "name": "debt", "type": "address", "internalType": "address" }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "cancelOrder",
+    "inputs": [
+      {
+        "name": "title",
+        "type": "tuple",
+        "internalType": "struct IAaveRouter.OrderTitle",
+        "components": [
+          { "name": "debt", "type": "address", "internalType": "address" },
+          {
+            "name": "debtNonce",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "startTime",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          { "name": "endTime", "type": "uint256", "internalType": "uint256" },
+          {
+            "name": "triggerHF",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ]
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "cancelledOrders",
+    "inputs": [{ "name": "", "type": "bytes32", "internalType": "bytes32" }],
+    "outputs": [{ "name": "", "type": "bool", "internalType": "bool" }],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "createDebt",
+    "inputs": [],
+    "outputs": [{ "name": "", "type": "address", "internalType": "address" }],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "debtNonces",
+    "inputs": [{ "name": "", "type": "address", "internalType": "address" }],
+    "outputs": [{ "name": "", "type": "uint256", "internalType": "uint256" }],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "debtOwners",
+    "inputs": [{ "name": "", "type": "address", "internalType": "address" }],
+    "outputs": [{ "name": "", "type": "address", "internalType": "address" }],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "eip712Domain",
+    "inputs": [],
+    "outputs": [
+      { "name": "fields", "type": "bytes1", "internalType": "bytes1" },
+      { "name": "name", "type": "string", "internalType": "string" },
+      { "name": "version", "type": "string", "internalType": "string" },
+      { "name": "chainId", "type": "uint256", "internalType": "uint256" },
+      {
+        "name": "verifyingContract",
+        "type": "address",
+        "internalType": "address"
+      },
+      { "name": "salt", "type": "bytes32", "internalType": "bytes32" },
+      {
+        "name": "extensions",
+        "type": "uint256[]",
+        "internalType": "uint256[]"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "excutePartialSellOrder",
+    "inputs": [
+      {
+        "name": "order",
+        "type": "tuple",
+        "internalType": "struct IAaveRouter.PartialSellOrder",
+        "components": [
+          {
+            "name": "title",
+            "type": "tuple",
+            "internalType": "struct IAaveRouter.OrderTitle",
+            "components": [
+              {
+                "name": "debt",
+                "type": "address",
+                "internalType": "address"
+              },
+              {
+                "name": "debtNonce",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "startTime",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "endTime",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "triggerHF",
+                "type": "uint256",
+                "internalType": "uint256"
+              }
+            ]
+          },
+          {
+            "name": "interestRateMode",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "collateralOut",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "repayToken",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "repayAmount",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          { "name": "bonus", "type": "uint256", "internalType": "uint256" },
+          { "name": "v", "type": "uint8", "internalType": "uint8" },
+          { "name": "r", "type": "bytes32", "internalType": "bytes32" },
+          { "name": "s", "type": "bytes32", "internalType": "bytes32" }
+        ]
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "executeFullSaleOrder",
+    "inputs": [
+      {
+        "name": "order",
+        "type": "tuple",
+        "internalType": "struct IAaveRouter.FullSellOrder",
+        "components": [
+          {
+            "name": "title",
+            "type": "tuple",
+            "internalType": "struct IAaveRouter.OrderTitle",
+            "components": [
+              {
+                "name": "debt",
+                "type": "address",
+                "internalType": "address"
+              },
+              {
+                "name": "debtNonce",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "startTime",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "endTime",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "triggerHF",
+                "type": "uint256",
+                "internalType": "uint256"
+              }
+            ]
+          },
+          { "name": "token", "type": "address", "internalType": "address" },
+          { "name": "bonus", "type": "uint256", "internalType": "uint256" },
+          { "name": "v", "type": "uint8", "internalType": "uint8" },
+          { "name": "r", "type": "bytes32", "internalType": "bytes32" },
+          { "name": "s", "type": "bytes32", "internalType": "bytes32" }
+        ]
+      },
+      { "name": "minProfit", "type": "uint256", "internalType": "uint256" }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "multicall",
+    "inputs": [
+      { "name": "data", "type": "bytes[]", "internalType": "bytes[]" }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "predictDebtAddress",
+    "inputs": [
+      { "name": "user", "type": "address", "internalType": "address" }
+    ],
+    "outputs": [{ "name": "", "type": "address", "internalType": "address" }],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "transferDebtOwnership",
+    "inputs": [
+      { "name": "debt", "type": "address", "internalType": "address" },
+      { "name": "newOwner", "type": "address", "internalType": "address" }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "userNonces",
+    "inputs": [{ "name": "", "type": "address", "internalType": "address" }],
+    "outputs": [{ "name": "", "type": "uint256", "internalType": "uint256" }],
+    "stateMutability": "view"
+  },
+  {
+    "type": "event",
+    "name": "Borrow",
+    "inputs": [
+      {
+        "name": "debt",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "asset",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "interestRateMode",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "CancelCurrentDebtOrders",
+    "inputs": [
+      {
+        "name": "debt",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "CancelOrder",
+    "inputs": [
+      {
+        "name": "titleHash",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "CreateDebt",
+    "inputs": [
+      {
+        "name": "debt",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "owner",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "nonce",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "EIP712DomainChanged",
+    "inputs": [],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "ExecuteFullSaleOrder",
+    "inputs": [
+      {
+        "name": "titleHash",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "debt",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "debtNonce",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "seller",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
+      },
+      {
+        "name": "buyer",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
+      },
+      {
+        "name": "baseValue",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "ExecutePartialSellOrder",
+    "inputs": [
+      {
+        "name": "titleHash",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "debt",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "debtNonce",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "seller",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
+      },
+      {
+        "name": "buyer",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
+      },
+      {
+        "name": "baseValue",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "Repay",
+    "inputs": [
+      {
+        "name": "debt",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "asset",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "interestRateMode",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "Supply",
+    "inputs": [
+      {
+        "name": "debt",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "asset",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "TransferDebtOwnership",
+    "inputs": [
+      {
+        "name": "debt",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "newOwner",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "Withdraw",
+    "inputs": [
+      {
+        "name": "debt",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "asset",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "to",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  { "type": "error", "name": "ECDSAInvalidSignature", "inputs": [] },
+  {
+    "type": "error",
+    "name": "ECDSAInvalidSignatureLength",
+    "inputs": [
+      { "name": "length", "type": "uint256", "internalType": "uint256" }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "ECDSAInvalidSignatureS",
+    "inputs": [{ "name": "s", "type": "bytes32", "internalType": "bytes32" }]
+  },
+  { "type": "error", "name": "FailedDeployment", "inputs": [] },
+  {
+    "type": "error",
+    "name": "InsufficientBalance",
+    "inputs": [
+      { "name": "balance", "type": "uint256", "internalType": "uint256" },
+      { "name": "needed", "type": "uint256", "internalType": "uint256" }
+    ]
+  },
+  { "type": "error", "name": "InvalidShortString", "inputs": [] },
+  {
+    "type": "error",
+    "name": "StringTooLong",
+    "inputs": [{ "name": "str", "type": "string", "internalType": "string" }]
+  }
+]

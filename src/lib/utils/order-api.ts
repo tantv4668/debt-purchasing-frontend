@@ -21,7 +21,7 @@ export interface FullSellOrderData {
   endTime: number;
   triggerHF: string;
   token: string;
-  percentOfEquity: string;
+  bonus: string; // Changed from percentOfEquity
   v: number;
   r: string;
   s: string;

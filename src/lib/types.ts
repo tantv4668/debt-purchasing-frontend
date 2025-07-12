@@ -13,7 +13,7 @@ export interface OrderTitle {
 export interface FullSellOrder {
   title: OrderTitle;
   token: string; // Payment token address
-  percentOfEquity: number; // Basis points (e.g., 9000 = 90%)
+  bonus: number; // Bonus percentage (basis points, e.g., 500 = 5%)
   v: number;
   r: string;
   s: string;
@@ -39,7 +39,7 @@ export interface CreateFullSellOrderParams {
   debtAddress: string;
   debtNonce: number; // Current debt nonce from debt position
   triggerHealthFactor: number; // Regular number (e.g., 1.5)
-  equityPercentage: number; // Percentage 0-100
+  bonus: number; // Bonus percentage 0-100
   paymentToken: string;
   validityPeriodHours: number;
 }
@@ -127,12 +127,11 @@ export interface MarketOrder {
   isActive: boolean;
   canExecuteReason?: string;
   // Full order specific fields
-  percentOfEquity?: number;
+  bonus?: number; // Changed from percentOfEquity
   paymentToken?: Address;
   // Partial order specific fields
   repayToken?: Address;
-  repayAmount?: bigint;
-  bonus?: number;
+  repayAmount?: string; // Changed to string for decimal format
   collateralToken?: Address;
 }
 
@@ -157,7 +156,7 @@ export interface HealthFactorInfo {
 // Form validation types
 export interface OrderFormErrors {
   triggerHealthFactor?: string;
-  percentOfEquity?: string;
+  bonus?: string;
   repayAmount?: string;
   validUntil?: string;
   collateralToken?: string;
@@ -211,6 +210,7 @@ export const MAX_VALIDITY_PERIOD_HOURS = 24 * 30; // 30 days
 export interface UserSellOrder {
   id: string;
   debtAddress: Address;
+  debtNonce: number; // Debt nonce for order validation
   type: "full" | "partial";
   status: "active" | "expired" | "executed" | "cancelled";
   createdAt: Date;
@@ -219,12 +219,11 @@ export interface UserSellOrder {
   currentHealthFactor: number;
   canExecute: "YES" | "NO" | string;
   // Full sell order specific fields
-  percentOfEquity?: number;
+  bonus?: number; // Changed from percentOfEquity
   paymentToken?: Address;
   // Partial sell order specific fields
   repayToken?: Address;
-  repayAmount?: bigint;
-  bonus?: number;
+  repayAmount?: string; // Changed to string for decimal format
   collateralToken?: Address; // Single collateral token for partial orders
 }
 

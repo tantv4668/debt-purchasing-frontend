@@ -1,11 +1,15 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { Address } from "viem";
 import { useAccount, useChainId, useWalletClient } from "wagmi";
 import { MarketOrder, UserOrdersSummary, UserSellOrder } from "../types";
 import { toPreciseWei } from "../utils";
 import { orderApiService } from "../utils/order-api";
 import { signCancelOrderMessage } from "../utils/order-signing";
-import { formatTokenData, tokenPriceService } from "../utils/token-helpers";
+import {
+  formatTokenData,
+  tokenPriceService,
+  decimalToWei,
+} from "../utils/token-helpers";
 
 // Convert backend order to frontend MarketOrder format (for market view)
 const convertBackendOrderToMarketOrder = async (
@@ -81,15 +85,25 @@ const convertBackendOrderToMarketOrder = async (
         );
       }
 
-      const netEquity = totalCollateralUSD - totalDebtUSD;
-      const sellerPercentageBasisPoints = parseInt(fullOrder.percentOfEquity);
-      const buyerPercentageBasisPoints = 10000 - sellerPercentageBasisPoints;
-      const estimatedProfit = (netEquity * buyerPercentageBasisPoints) / 10000;
+      // Calculate estimated profit using new bonus logic
+      // Seller receives: totalCollateralBase - totalDebtBase - bonusAmount
+      // Buyer's cost: totalCollateralBase - totalDebtBase - bonusAmount
+      // Buyer's profit: totalCollateralBase - buyer's cost - totalDebtBase = bonusAmount
+      const bonusAmount = (totalDebtUSD * parseInt(fullOrder.bonus)) / 10000;
+      const estimatedProfit = bonusAmount; // Buyer's estimated profit
+
+      console.log(
+        "🔍 Converting fullOrder.bonus:",
+        fullOrder.bonus,
+        typeof fullOrder.bonus
+      );
+      const bonusValue = fullOrder.bonus ? parseInt(fullOrder.bonus) : 0;
+      console.log("🔍 Converted bonus value:", bonusValue, typeof bonusValue);
 
       return {
         ...baseOrder,
         type: "full",
-        percentOfEquity: parseInt(fullOrder.percentOfEquity) / 100,
+        bonus: bonusValue, // Keep as basis points (200 = 2%), default to 0 if null/undefined
         paymentToken: fullOrder.token as Address,
         estimatedProfit: toPreciseWei(estimatedProfit), // Precise conversion to bigint with 18 decimals
       };
@@ -101,9 +115,14 @@ const convertBackendOrderToMarketOrder = async (
         );
       }
 
-      const repayAmount = BigInt(partialOrder.repayAmount);
-      const bonusBasisPoints = parseInt(partialOrder.bonus);
-      const bonusPercentage = parseInt(partialOrder.bonus) / 100;
+      // Backend already returns decimal format, no conversion needed
+      const repayAmountDecimal = partialOrder.repayAmount;
+      const bonusBasisPoints = partialOrder.bonus
+        ? parseInt(partialOrder.bonus)
+        : 0;
+      const bonusPercentage = partialOrder.bonus
+        ? parseInt(partialOrder.bonus)
+        : 0;
       // Simple calculation: repay amount * bonus percentage
       const repayAmountNumber = parseFloat(partialOrder.repayAmount);
       const estimatedProfitUSD = (repayAmountNumber * bonusBasisPoints) / 10000;
@@ -112,9 +131,9 @@ const convertBackendOrderToMarketOrder = async (
         ...baseOrder,
         type: "partial",
         repayToken: partialOrder.repayToken as Address,
-        repayAmount,
+        repayAmount: repayAmountDecimal, // Keep as decimal string
         bonus: bonusPercentage,
-        collateralTokens: partialOrder.collateralOut as Address[],
+        collateralToken: partialOrder.collateralOut as Address,
         estimatedProfit: toPreciseWei(estimatedProfitUSD), // Precise conversion to bigint with 18 decimals
       };
     }
@@ -126,7 +145,8 @@ const convertBackendOrderToMarketOrder = async (
 
 // Convert backend order to frontend UserSellOrder format (for user orders view)
 const convertBackendOrderToUserSellOrder = (
-  backendOrder: any
+  backendOrder: any,
+  chainId: number
 ): UserSellOrder => {
   const type = backendOrder.orderType === "FULL" ? "full" : "partial";
   const status = backendOrder.status.toLowerCase() as
@@ -148,6 +168,7 @@ const convertBackendOrderToUserSellOrder = (
   const baseOrder = {
     id: backendOrder.id,
     debtAddress: backendOrder.debtAddress as Address,
+    debtNonce: backendOrder.debtNonce || 0, // Extract debt nonce from backend order
     type,
     status,
     createdAt: new Date(backendOrder.createdAt),
@@ -164,7 +185,7 @@ const convertBackendOrderToUserSellOrder = (
       return {
         ...baseOrder,
         type: "full",
-        percentOfEquity: parseInt(fullOrder.percentOfEquity) / 100, // Convert from basis points
+        bonus: fullOrder.bonus ? parseInt(fullOrder.bonus) : 0, // Keep as basis points (200 = 2%), default to 0 if null/undefined
         paymentToken: fullOrder.token as Address,
       };
     } else {
@@ -175,7 +196,7 @@ const convertBackendOrderToUserSellOrder = (
       return {
         ...baseOrder,
         type: "full",
-        percentOfEquity: 0,
+        bonus: 0,
         paymentToken: "0x0000000000000000000000000000000000000000" as Address,
       };
     }
@@ -187,8 +208,8 @@ const convertBackendOrderToUserSellOrder = (
         ...baseOrder,
         type: "partial",
         repayToken: partialOrder.repayToken as Address,
-        repayAmount: BigInt(partialOrder.repayAmount),
-        bonus: parseInt(partialOrder.bonus) / 100, // Convert from basis points
+        repayAmount: partialOrder.repayAmount, // Keep as decimal string
+        bonus: partialOrder.bonus ? parseInt(partialOrder.bonus) : 0, // Keep as basis points (200 = 2%)
         collateralToken: partialOrder.collateralOut as Address,
       };
     } else {
@@ -200,7 +221,7 @@ const convertBackendOrderToUserSellOrder = (
         ...baseOrder,
         type: "partial",
         repayToken: "0x0000000000000000000000000000000000000000" as Address,
-        repayAmount: BigInt(0),
+        repayAmount: "0", // Keep as decimal string
         bonus: 0,
         collateralToken:
           "0x0000000000000000000000000000000000000000" as Address,
@@ -296,12 +317,13 @@ export function useUserOrders() {
         limit: 50, // Fetch more orders for user
       });
 
-      const convertedOrders = response.orders.map(
-        convertBackendOrderToUserSellOrder
+      const convertedOrders = response.orders.map((order) =>
+        convertBackendOrderToUserSellOrder(order, chainId)
       );
+
       setOrders(convertedOrders);
     } catch (err) {
-      console.error("Failed to fetch user orders:", err);
+      console.error("❌ useUserOrders: Failed to fetch orders:", err);
       setError(err instanceof Error ? err.message : "Failed to load orders");
       setOrders([]);
     } finally {
@@ -320,7 +342,8 @@ export function useUserOrders() {
 export function useUserOrdersSummary(): UserOrdersSummary {
   const { orders } = useUserOrders();
 
-  const summary = {
+  // Direct computation without useMemo to avoid caching issues
+  const result = {
     totalOrders: orders.length,
     activeOrders: orders.filter((order) => order.status === "active").length,
     expiredOrders: orders.filter((order) => order.status === "expired").length,
@@ -329,7 +352,7 @@ export function useUserOrdersSummary(): UserOrdersSummary {
     totalPotentialValue: 0, // Would calculate based on position values
   };
 
-  return summary;
+  return result;
 }
 
 // Hook for order actions (cancel, create)

@@ -13,7 +13,7 @@ interface FullSellOrderUnsigned {
   endTime: number;
   triggerHF: string;
   token: string;
-  percentOfEquity: string;
+  bonus: string; // Changed from percentOfEquity
 }
 
 interface PartialSellOrderUnsigned {
@@ -50,7 +50,7 @@ function createEIP712Types() {
     FullSellOrder: [
       { name: "title", type: "OrderTitle" },
       { name: "token", type: "address" },
-      { name: "percentOfEquity", type: "uint256" },
+      { name: "bonus", type: "uint256" }, // Changed from percentOfEquity
     ],
     PartialSellOrder: [
       { name: "title", type: "OrderTitle" },
@@ -66,6 +66,18 @@ function createEIP712Types() {
 function createNestedTitle(
   order: FullSellOrderUnsigned | PartialSellOrderUnsigned
 ) {
+  // Validate required fields before BigInt conversion
+  if (
+    order.debtNonce === undefined ||
+    order.startTime === undefined ||
+    order.endTime === undefined ||
+    order.triggerHF === undefined
+  ) {
+    throw new Error(
+      "Missing required order title fields: debtNonce, startTime, endTime, or triggerHF"
+    );
+  }
+
   return {
     debt: order.debt as Hex,
     debtNonce: BigInt(order.debtNonce),
@@ -85,10 +97,15 @@ async function signFullSellOrderEIP712(
   const domain = createEIP712Domain(chainId, contractAddress);
   const types = createEIP712Types();
 
+  // Validate bonus field before BigInt conversion
+  if (order.bonus === undefined) {
+    throw new Error("Missing required field: bonus");
+  }
+
   const value = {
     title: createNestedTitle(order),
     token: order.token as Hex,
-    percentOfEquity: BigInt(order.percentOfEquity),
+    bonus: BigInt(order.bonus), // Changed from percentOfEquity
   };
 
   try {
@@ -127,6 +144,17 @@ async function signPartialSellOrderEIP712(
 ): Promise<{ v: number; r: Hex; s: Hex }> {
   const domain = createEIP712Domain(chainId, contractAddress);
   const types = createEIP712Types();
+
+  // Validate required fields before BigInt conversion
+  if (
+    order.interestRateMode === undefined ||
+    order.repayAmount === undefined ||
+    order.bonus === undefined
+  ) {
+    throw new Error(
+      "Missing required partial order fields: interestRateMode, repayAmount, or bonus"
+    );
+  }
 
   const value = {
     title: createNestedTitle(order),

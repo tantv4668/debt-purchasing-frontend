@@ -1,7 +1,7 @@
-import { clsx, type ClassValue } from 'clsx';
-import { twMerge } from 'tailwind-merge';
-import { Address, formatUnits } from 'viem';
-import { HealthFactorInfo, HealthFactorStatus, ORDER_CONSTANTS } from './types';
+import { clsx, type ClassValue } from "clsx";
+import { twMerge } from "tailwind-merge";
+import { Address, formatUnits } from "viem";
+import { HealthFactorInfo, HealthFactorStatus, ORDER_CONSTANTS } from "./types";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -13,16 +13,23 @@ export function formatHealthFactor(healthFactor: bigint): number {
 }
 
 export function parseHealthFactor(healthFactor: number): bigint {
-  return BigInt(Math.floor(healthFactor * Number(ORDER_CONSTANTS.HEALTH_FACTOR_PRECISION)));
+  return BigInt(
+    Math.floor(healthFactor * Number(ORDER_CONSTANTS.HEALTH_FACTOR_PRECISION))
+  );
 }
 
-export function getHealthFactorStatus(healthFactor: number): HealthFactorStatus {
-  if (healthFactor >= 2.0) return 'safe';
-  if (healthFactor >= 1.1) return 'warning';
-  return 'danger';
+export function getHealthFactorStatus(
+  healthFactor: number
+): HealthFactorStatus {
+  if (healthFactor >= 2.0) return "safe";
+  if (healthFactor >= 1.1) return "warning";
+  return "danger";
 }
 
-export function getHealthFactorInfo(healthFactor: bigint, liquidationThreshold: bigint): HealthFactorInfo {
+export function getHealthFactorInfo(
+  healthFactor: bigint,
+  liquidationThreshold: bigint
+): HealthFactorInfo {
   const value = formatHealthFactor(healthFactor);
   const status = getHealthFactorStatus(value);
   const threshold = Number(liquidationThreshold) / 10000; // Convert from basis points
@@ -35,7 +42,11 @@ export function getHealthFactorInfo(healthFactor: bigint, liquidationThreshold: 
 }
 
 // Address utilities
-export function truncateAddress(address: string, prefixLength = 6, suffixLength = 4): string {
+export function truncateAddress(
+  address: string,
+  prefixLength = 6,
+  suffixLength = 4
+): string {
   if (address.length <= prefixLength + suffixLength) {
     return address;
   }
@@ -47,7 +58,11 @@ export function isValidAddress(address: string): boolean {
 }
 
 // Token amount formatting
-export function formatTokenAmount(amount: bigint, decimals: number, precision = 4): string {
+export function formatTokenAmount(
+  amount: bigint,
+  decimals: number,
+  precision = 4
+): string {
   const divisor = BigInt(10 ** decimals);
   const wholePart = amount / divisor;
   const fractionalPart = amount % divisor;
@@ -56,10 +71,12 @@ export function formatTokenAmount(amount: bigint, decimals: number, precision = 
     return wholePart.toString();
   }
 
-  const fractionalStr = fractionalPart.toString().padStart(decimals, '0');
-  const trimmedFractional = fractionalStr.slice(0, precision).replace(/0+$/, '');
+  const fractionalStr = fractionalPart.toString().padStart(decimals, "0");
+  const trimmedFractional = fractionalStr
+    .slice(0, precision)
+    .replace(/0+$/, "");
 
-  if (trimmedFractional === '') {
+  if (trimmedFractional === "") {
     return wholePart.toString();
   }
 
@@ -67,8 +84,10 @@ export function formatTokenAmount(amount: bigint, decimals: number, precision = 
 }
 
 export function parseTokenAmount(amount: string, decimals: number): bigint {
-  const [wholePart, fractionalPart = ''] = amount.split('.');
-  const paddedFractional = fractionalPart.padEnd(decimals, '0').slice(0, decimals);
+  const [wholePart, fractionalPart = ""] = amount.split(".");
+  const paddedFractional = fractionalPart
+    .padEnd(decimals, "0")
+    .slice(0, decimals);
   return BigInt(wholePart + paddedFractional);
 }
 
@@ -86,12 +105,12 @@ export function formatEtherToUSD(etherValue: bigint): string {
 
 // Format regular number to USD display
 export function formatNumberToUSD(value: number): string {
-  if (value === 0) return '$0.00';
-  if (value < 0.01) return '<$0.01';
+  if (value === 0) return "$0.00";
+  if (value < 0.01) return "<$0.01";
 
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(value);
@@ -99,7 +118,9 @@ export function formatNumberToUSD(value: number): string {
 
 // Legacy function - keep for backward compatibility but mark as deprecated
 export function formatUSD(value: bigint): string {
-  console.warn('formatUSD is deprecated. Use formatWeiToUSD or formatEtherToUSD instead.');
+  console.warn(
+    "formatUSD is deprecated. Use formatWeiToUSD or formatEtherToUSD instead."
+  );
   return formatWeiToUSD(value);
 }
 
@@ -118,16 +139,18 @@ export function formatBasisPoints(basisPoints: bigint): number {
 
 // Time utilities
 export function formatTimeRemaining(date: Date | string): string {
-  const targetDate = typeof date === 'string' ? new Date(date) : date;
+  const targetDate = typeof date === "string" ? new Date(date) : date;
   const now = new Date();
   const diffMs = targetDate.getTime() - now.getTime();
 
   if (diffMs <= 0) {
-    return 'Expired';
+    return "Expired";
   }
 
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-  const diffHours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+  const diffHours = Math.floor(
+    (diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)
+  );
   const diffMinutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
 
   if (diffDays > 0) {
@@ -144,7 +167,10 @@ export function isOrderExpired(endTime: Date): boolean {
 }
 
 // Order validation
-export function validateHealthFactorTrigger(triggerHF: number, currentHF: number): string | null {
+export function validateHealthFactorTrigger(
+  triggerHF: number,
+  currentHF: number
+): string | null {
   // if (triggerHF <= 1.0) {
   //   return 'Trigger health factor must be above 1.0 to avoid liquidation';
   // }
@@ -160,13 +186,18 @@ export function validateHealthFactorTrigger(triggerHF: number, currentHF: number
   return null;
 }
 
-export function validatePercentOfEquity(percent: number): string | null {
-  if (percent <= 0 || percent > 100) {
-    return 'Percentage must be between 0 and 100';
+export function validateBonus(bonus: number): string | null {
+  // bonus is in percentage format (e.g., 2 = 2%, not basis points)
+  if (bonus <= 0 || bonus > 20) {
+    return "Bonus must be between 0.1% and 20%";
   }
 
-  if (percent < 10) {
-    return 'Percentage should be at least 10% to be attractive to buyers';
+  if (bonus < 0.1) {
+    return "Bonus should be at least 0.1%";
+  }
+
+  if (bonus > 10) {
+    return "Warning: High bonus may reduce market appeal";
   }
 
   return null;
@@ -174,10 +205,13 @@ export function validatePercentOfEquity(percent: number): string | null {
 
 export function validateOrderValidity(validUntil: Date): string | null {
   const now = new Date();
-  const maxValidUntil = new Date(now.getTime() + ORDER_CONSTANTS.MAX_ORDER_VALIDITY_DAYS * 24 * 60 * 60 * 1000);
+  const maxValidUntil = new Date(
+    now.getTime() +
+      ORDER_CONSTANTS.MAX_ORDER_VALIDITY_DAYS * 24 * 60 * 60 * 1000
+  );
 
   if (validUntil <= now) {
-    return 'Expiration must be in the future';
+    return "Expiration must be in the future";
   }
 
   if (validUntil > maxValidUntil) {
@@ -191,16 +225,21 @@ export function validateOrderValidity(validUntil: Date): string | null {
 export function calculateFullOrderProfit(
   totalCollateralBase: bigint,
   totalDebtBase: bigint,
-  percentOfEquity: number,
+  bonus: number
 ): bigint {
-  const netEquity = totalCollateralBase - totalDebtBase;
-  const buyerEquity =
-    netEquity - (netEquity * BigInt(percentOfEquity * 100)) / BigInt(ORDER_CONSTANTS.BASIS_POINTS_PRECISION);
-  return buyerEquity;
+  // New logic: Buyer gets bonusAmount as profit
+  // bonusAmount = totalDebtBase * bonus / 10000 (bonus is already in basis points)
+  const bonusAmount = (totalDebtBase * BigInt(bonus)) / BigInt(10000);
+  return bonusAmount;
 }
 
-export function calculatePartialOrderCost(repayAmount: bigint, bonus: number): bigint {
-  const bonusAmount = (repayAmount * BigInt(bonus * 100)) / BigInt(ORDER_CONSTANTS.BASIS_POINTS_PRECISION);
+export function calculatePartialOrderCost(
+  repayAmount: bigint,
+  bonus: number
+): bigint {
+  const bonusAmount =
+    (repayAmount * BigInt(bonus)) /
+    BigInt(ORDER_CONSTANTS.BASIS_POINTS_PRECISION);
   return repayAmount + bonusAmount;
 }
 
@@ -209,10 +248,10 @@ export function getErrorMessage(error: unknown): string {
   if (error instanceof Error) {
     return error.message;
   }
-  if (typeof error === 'string') {
+  if (typeof error === "string") {
     return error;
   }
-  return 'An unknown error occurred';
+  return "An unknown error occurred";
 }
 
 // Contract interaction helpers
@@ -234,8 +273,8 @@ export function encodeOrderTitle(title: {
 
 // Mock data helpers for development
 export function generateMockAddress(): Address {
-  const chars = '0123456789abcdef';
-  let result = '0x';
+  const chars = "0123456789abcdef";
+  let result = "0x";
   for (let i = 0; i < 40; i++) {
     result += chars[Math.floor(Math.random() * chars.length)];
   }
@@ -248,13 +287,13 @@ export function generateMockOrderId(): string {
 
 // Token symbol to name mapping
 export const TOKEN_NAMES: Record<string, string> = {
-  WETH: 'Wrapped Ethereum',
-  WBTC: 'Wrapped Bitcoin',
-  USDC: 'USD Coin',
-  USDT: 'Tether USD',
-  DAI: 'Dai Stablecoin',
-  AAVE: 'Aave Token',
-  LINK: 'Chainlink',
+  WETH: "Wrapped Ethereum",
+  WBTC: "Wrapped Bitcoin",
+  USDC: "USD Coin",
+  USDT: "Tether USD",
+  DAI: "Dai Stablecoin",
+  AAVE: "Aave Token",
+  LINK: "Chainlink",
 };
 
 export function getTokenName(symbol: string): string {
@@ -262,7 +301,11 @@ export function getTokenName(symbol: string): string {
 }
 
 // Precise number conversion utilities
-export function toPreciseBigInt(value: number, decimals: number = 18, precision: number = 4): bigint {
+export function toPreciseBigInt(
+  value: number,
+  decimals: number = 18,
+  precision: number = 4
+): bigint {
   // Ensure we preserve the specified precision without rounding
   const factor = Math.pow(10, decimals);
   const precisionFactor = Math.pow(10, precision);
@@ -281,37 +324,66 @@ export function toPreciseWei(value: number, precision: number = 4): bigint {
   return toPreciseBigInt(value, 18, precision);
 }
 
-export function toPreciseTokenAmount(value: number, tokenDecimals: number, precision: number = 4): bigint {
+export function toPreciseTokenAmount(
+  value: number,
+  tokenDecimals: number,
+  precision: number = 4
+): bigint {
   return toPreciseBigInt(value, tokenDecimals, precision);
 }
 
 // Alternative method using string manipulation for even more precision
-export function toPreciseBigIntString(value: number, decimals: number = 18, precision: number = 4): bigint {
+export function toPreciseBigIntString(
+  value: number,
+  decimals: number = 18,
+  precision: number = 4
+): bigint {
   // Convert to string with fixed precision
   const valueStr = value.toFixed(precision);
-  const [wholePart, fractionalPart = ''] = valueStr.split('.');
+  const [wholePart, fractionalPart = ""] = valueStr.split(".");
 
   // Pad fractional part to match decimals
-  const paddedFractional = fractionalPart.padEnd(decimals, '0').slice(0, decimals);
+  const paddedFractional = fractionalPart
+    .padEnd(decimals, "0")
+    .slice(0, decimals);
 
   // Combine and convert to bigint
   return BigInt(wholePart + paddedFractional);
 }
 
 // Precise number formatting utilities for UI display
-export function formatPreciseNumber(value: number, precision: number = 4): string {
+export function formatPreciseNumber(
+  value: number,
+  precision: number = 4
+): string {
   const factor = Math.pow(10, precision);
   const truncatedValue = Math.floor(value * factor) / factor;
   return truncatedValue.toString();
 }
 
-export function formatPreciseHealthFactor(value: number, decimals: number = 3): string {
+export function formatPreciseHealthFactor(
+  value: number,
+  decimals: number = 3
+): string {
   const factor = Math.pow(10, decimals);
   const truncatedValue = Math.floor(value * factor) / factor;
   return truncatedValue.toFixed(decimals);
 }
 
-export function formatPrecisePercentage(percentage: number, decimals: number = 2): string {
+export function formatPrecisePercentage(
+  percentage: number,
+  decimals: number = 2
+): string {
+  const factor = Math.pow(10, decimals);
+  const truncatedValue = Math.floor(percentage * factor) / factor;
+  return `${truncatedValue.toFixed(decimals)}%`;
+}
+
+export function formatBasisPointsToPercentage(
+  basisPoints: number,
+  decimals: number = 2
+): string {
+  const percentage = basisPoints / 100; // Convert basis points to percentage
   const factor = Math.pow(10, decimals);
   const truncatedValue = Math.floor(percentage * factor) / factor;
   return `${truncatedValue.toFixed(decimals)}%`;
@@ -325,29 +397,35 @@ Example of precision improvement:
 
 // Precise USD formatting functions
 export function formatPreciseUSD(value: number, decimals: number = 4): string {
-  if (value === 0) return '$0.00';
-  if (value < 0.0001) return '<$0.0001';
+  if (value === 0) return "$0.00";
+  if (value < 0.0001) return "<$0.0001";
 
   // Use precise truncation instead of rounding
   const factor = Math.pow(10, decimals);
   const truncatedValue = Math.floor(value * factor) / factor;
 
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
     minimumFractionDigits: 2,
     maximumFractionDigits: decimals,
   }).format(truncatedValue);
 }
 
 // Format wei values (BigInt) to precise USD display
-export function formatPreciseWeiToUSD(weiValue: bigint, decimals: number = 4): string {
+export function formatPreciseWeiToUSD(
+  weiValue: bigint,
+  decimals: number = 4
+): string {
   const usdValue = formatUnits(weiValue, 18);
   return formatPreciseUSD(parseFloat(usdValue), decimals);
 }
 
 // Format ether values (BigInt that represent USD amounts directly) to precise USD display
-export function formatPreciseEtherToUSD(etherValue: bigint, decimals: number = 4): string {
+export function formatPreciseEtherToUSD(
+  etherValue: bigint,
+  decimals: number = 4
+): string {
   const usdValue = Number(etherValue);
   return formatPreciseUSD(usdValue, decimals);
 }
