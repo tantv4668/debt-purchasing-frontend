@@ -33,7 +33,7 @@ export function CancelOrderButton({
         debtNonce: order.debtNonce,
         startTime: order.startTime,
         endTime: order.endTime,
-        triggerHF: order.triggerHF,
+        triggerHF: Number(order.triggerHF),
       });
 
       // Order successfully cancelled

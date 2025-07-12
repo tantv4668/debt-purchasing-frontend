@@ -533,7 +533,7 @@ export default function MarketPage() {
               </div>
             ) : (
               <div className="text-sm text-gray-600 dark:text-gray-400">
-                You'll pay for the debt plus{" "}
+                You&apos;ll pay for the debt plus{" "}
                 {formatBasisPointsToPercentage(selectedOrder.bonus || 0)} bonus
               </div>
             )}
@@ -773,8 +773,8 @@ export default function MarketPage() {
                   Option 1: Standard Purchase
                 </h4>
                 <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
-                  Transfer ownership only. You'll need to manually repay debts
-                  and withdraw collateral afterwards.
+                  Transfer ownership only. You&apos;ll need to manually repay
+                  debts and withdraw collateral afterwards.
                 </p>
                 <button
                   onClick={() => {
@@ -803,7 +803,7 @@ export default function MarketPage() {
                 </h4>
                 <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
                   Automatically repay all debts and withdraw all collateral in
-                  one transaction. You'll receive the net profit directly.
+                  one transaction. You&apos;ll receive the net profit directly.
                 </p>
                 <div className="text-xs text-gray-500 dark:text-gray-400 mb-3">
                   This executes: Order purchase → Repay all debts → Withdraw all

@@ -789,8 +789,8 @@ export default function PositionsPage() {
                       No Debt Positions
                     </h3>
                     <p className="text-gray-600 dark:text-gray-300 mb-6 max-w-md mx-auto">
-                      You haven't created any debt positions yet. Create your
-                      first position to start leveraging your assets.
+                      You haven&apos;t created any debt positions yet. Create
+                      your first position to start leveraging your assets.
                     </p>
                     <button
                       onClick={() => setIsCreateModalOpen(true)}
@@ -1250,7 +1250,7 @@ export default function PositionsPage() {
                       No Sell Orders
                     </h3>
                     <p className="text-gray-600 dark:text-gray-300 mb-6 max-w-md mx-auto">
-                      You haven't created any sell orders yet. Create sell
+                      You haven&apos;t created any sell orders yet. Create sell
                       orders for your positions to protect against liquidation.
                     </p>
                     {positions.length > 0 && (
@@ -1337,8 +1337,8 @@ export default function PositionsPage() {
                       No Order History
                     </h3>
                     <p className="text-gray-600 dark:text-gray-300 mb-6 max-w-md mx-auto">
-                      You don't have any executed, cancelled, or expired orders
-                      yet. Order history will appear here once you start
+                      You don&apos;t have any executed, cancelled, or expired
+                      orders yet. Order history will appear here once you start
                       trading.
                     </p>
                   </div>

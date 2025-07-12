@@ -344,7 +344,7 @@ export default function FaucetPage() {
             <ul className="space-y-2 text-sm text-blue-800 dark:text-blue-300">
               <li className="flex items-start">
                 <span className="font-medium mr-2">1.</span>
-                Make sure you're connected to Sepolia network
+                Make sure you&apos;re connected to Sepolia network
               </li>
               <li className="flex items-start">
                 <span className="font-medium mr-2">2.</span>

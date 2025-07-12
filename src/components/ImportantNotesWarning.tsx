@@ -19,8 +19,8 @@ export default function ImportantNotesWarning() {
               <p>
                 <strong>Price Updates:</strong> Prices are not updated
                 frequently because oracles on Sepolia are incomplete for
-                production use. The oracle is mocked and doesn't update prices
-                regularly. To execute orders, set{" "}
+                production use. The oracle is mocked and doesn&apos;t update
+                prices regularly. To execute orders, set{" "}
                 <code className="bg-yellow-100 dark:bg-yellow-800 px-1 py-0.5 rounded text-xs">
                   triggerHF
                 </code>{" "}
